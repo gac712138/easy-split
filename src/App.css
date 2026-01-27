@@ -1,13 +1,19 @@
 /* =========================================
-   1. 六色配色系統 & 全域變數
+   1. 配色系統 (系統預設 vs 使用者動態設定)
    ========================================= */
 :root {
-  --color-primary: #3a8fb7;    /* 主色 - 虎小島藍 */
-  --color-bg: #121212;         /* 背景色 - 極致黑 */
-  --color-card: #1e1e1e;       /* 卡片色 - 深炭灰 */
-  --color-text-main: #ffffff;  /* 主文字色 - 純白 */
-  --color-text-sub: #b3b3b3;   /* 副標文字色 - 淺灰 */
-  --color-text-muted: #666666; /* 取消/停用文字色 - 暗灰 */
+  /* 登入/註冊專用 (強制系統預設，不隨主題改變) */
+  --auth-primary: #3a8fb7;     /* 虎小島藍 */
+  --auth-bg: #121212;
+  --auth-text: #ffffff;
+
+  /* 內部頁面變數 (由 KV 結構動態注入) */
+  --color-primary: #3a8fb7;
+  --color-bg: #121212;
+  --color-card: #1e1e1e;
+  --color-text-main: #ffffff;  /* 主要文字色 */
+  --color-text-sub: #b3b3b3;   /* 次要文字色 */
+  --color-text-muted: #666666;
 }
 
 /* =========================================
@@ -22,21 +28,30 @@
 html, body, #root {
   width: 100%;
   min-height: 100dvh;
-  background-color: var(--color-bg) !important; /* 強制底色鎖死 */
+  background-color: var(--color-bg) !important; /* 強制底色鎖死防止閃爍 */
   color: var(--color-text-main);
   font-family: 'Noto Sans TC', -apple-system, sans-serif;
 }
 
+/* 全域文字色套用 */
+h1, h2, h3, h4, span, div {
+  color: var(--color-text-main);
+}
+
+p, .text-secondary, .person-role {
+  color: var(--color-text-sub);
+}
+
 body {
-  overscroll-behavior-y: none; 
-  touch-action: manipulation;
+  overscroll-behavior-y: none; /* 防止移動端下拉重新整理 */
+  touch-action: manipulation;   /* 禁止手勢縮放 */
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   overflow-x: hidden;
 }
 
-/* 確保輸入框可以被選取，且鎖死 16px */
+/* 確保輸入框可以選取，並鎖死 16px 防止 iOS 自動縮放 */
 input, textarea {
   -webkit-user-select: text;
   user-select: text;
@@ -44,30 +59,35 @@ input, textarea {
 }
 
 /* =========================================
-   3. 登入頁面佈局 (AuthView)
+   3. 佈局規範 (歸一化 64px/24px)
    ========================================= */
-.auth-view-container {
-  width: 100%;
-  min-height: 100dvh;
+.app-main-layout {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
+  min-height: 100dvh;
+  width: 100%;
 }
 
-.auth-content-wrapper {
-  width: 100%;
-  max-width: 340px;
+.navbar {
+  height: 64px; /* 標題列高度鎖死 */
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background-color: var(--color-bg);
+}
+
+.content-area {
+  padding: 24px; /* 統一內距 */
+  flex: 1;
+  overflow-y: auto;
 }
 
 /* =========================================
-   4. 側邊欄佈局 (Sidebar)
+   4. 側邊欄與底部抽屜 (Sidebar & Bottom Sheet)
    ========================================= */
-.sidebar-overlay {
+.sidebar-overlay, .modal-overlay {
   position: fixed;
   inset: 0;
   background-color: rgba(0, 0, 0, 0.8);
@@ -75,10 +95,10 @@ input, textarea {
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s ease;
-  backdrop-filter: blur(4px); /* 增加側邊欄開啟時的層次感 */
+  backdrop-filter: blur(4px);
 }
 
-.sidebar-overlay.active {
+.sidebar-overlay.active, .modal-overlay.active {
   opacity: 1;
   visibility: visible;
 }
@@ -98,26 +118,12 @@ input, textarea {
   transform: translateX(0);
 }
 
-/* =========================================
-   5. 底部抽屜 (Bottom Sheet - 新增專案專用)
-   ========================================= */
 .modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.8);
-  z-index: 2000;
-  opacity: 0;
-  visibility: hidden;
   display: flex;
-  align-items: flex-end; /* 關鍵：強制對齊底部 */
+  align-items: flex-end; /* 強制對齊底部 */
   justify-content: center;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(6px); /* 底色加深模糊，確保不露出白色 */
-}
-
-.modal-overlay.active {
-  opacity: 1;
-  visibility: visible;
+  z-index: 2000;
+  backdrop-filter: blur(6px);
 }
 
 .bottom-sheet {
@@ -126,18 +132,15 @@ input, textarea {
   background-color: var(--color-card);
   border-top-left-radius: 30px;
   border-top-right-radius: 30px;
-  padding: 20px 24px calc(30px + env(safe-area-inset-bottom)); /* 考慮手機安全區域 */
-  
-  /* 初始狀態：完全藏在螢幕下方 */
+  padding: 20px 24px calc(30px + env(safe-area-inset-bottom));
   transform: translateY(100%); 
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); /* 原生彈出感 */
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .modal-overlay.active .bottom-sheet {
-  transform: translateY(0); /* 往上彈出 */
+  transform: translateY(0);
 }
 
-/* 抽屜頂部的小橫條 */
 .sheet-indicator {
   width: 40px;
   height: 5px;
@@ -147,26 +150,10 @@ input, textarea {
 }
 
 /* =========================================
-   6. 通用 UI 元件 (藥丸風格 Pill-shape)
+   5. 通用 UI 元件 (藥丸風格 Pill-shape)
    ========================================= */
-
-/* 著色 Logo */
-.logo-section {
-  margin-bottom: 50px;
-  display: flex;
-  justify-content: center;
-}
-
-.brand-logo-tinted {
-  width: 200px;
-  height: 200px;
-  background-color: var(--color-primary); 
-  mask: url('/logo.png') no-repeat center / contain;
-  -webkit-mask: url('/logo.png') no-repeat center / contain;
-}
-
 .input-wrapper {
-  position: relative;
+  position: relative; /* 關鍵：提供定位基準解決密碼欄位跑版 */
   width: 100%;
   margin-bottom: 12px;
 }
@@ -179,12 +166,26 @@ input, textarea {
   color: var(--color-text-muted);
 }
 
+.password-toggle {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+}
+
 .band-input {
   width: 100%;
   padding: 16px 50px;
   background-color: #1a1a1a;
   border: 1px solid #333;
-  border-radius: 50px; /* 藥丸形狀 */
+  border-radius: 50px;
   color: var(--color-text-main);
   outline: none;
   transition: all 0.3s;
@@ -194,7 +195,6 @@ input, textarea {
   border-color: var(--color-primary);
 }
 
-/* 專為 Modal 內的 Textarea 調整 */
 textarea.band-input {
   border-radius: 20px;
   height: 100px;
@@ -212,6 +212,7 @@ textarea.band-input {
   font-weight: bold;
   cursor: pointer;
   margin-top: 15px;
+  transition: transform 0.1s;
 }
 
 .band-btn-primary:active {
@@ -237,7 +238,57 @@ textarea.band-input {
 }
 
 /* =========================================
-   7. 裝飾性元件
+   6. 設定項與人員卡片
+   ========================================= */
+.settings-item-card {
+  background-color: var(--color-card);
+  padding: 20px;
+  border-radius: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.person-pill-card {
+  background-color: var(--color-card);
+  padding: 12px 16px;
+  border-radius: 50px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.avatar-pill {
+  width: 40px; height: 40px;
+  background-color: var(--color-primary);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold; margin-right: 12px;
+}
+
+/* =========================================
+   7. Auth 頁面隔離區 (強制系統預設色)
+   ========================================= */
+.auth-view-container {
+  background-color: var(--auth-bg) !important;
+  color: var(--auth-text) !important;
+  width: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.auth-view-container .band-btn-primary {
+  background-color: var(--auth-primary) !important;
+}
+
+/* =========================================
+   8. 裝飾性元件
    ========================================= */
 .footer-tagline {
   position: fixed;
@@ -247,4 +298,30 @@ textarea.band-input {
   color: var(--color-text-muted);
   font-size: 11px;
   letter-spacing: 4px;
+}
+
+/* --- Sidebar 項目修正 --- */
+.sidebar-item {
+  display: flex !important; /* 強制開啟彈性佈局 */
+  align-items: center;
+  gap: 16px !important;    /* 增加圖示與文字的間距 */
+  width: 90%;
+  margin: 8px auto;
+  padding: 14px 20px;
+  border-radius: 50px;
+  color: var(--color-text-sub);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* 確保內部圖示不會縮放 */
+.sidebar-item svg {
+  flex-shrink: 0;
+}
+
+.sidebar-item.active {
+  background-color: var(--color-primary);
+  color: #ffffff;
 }
