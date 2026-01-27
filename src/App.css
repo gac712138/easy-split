@@ -148,3 +148,60 @@ body {
 
 /* 抽屜滑出動作 */
 .drawer-overlay.active .drawer-container { transform: translateY(0); }
+
+/* --- 修正：導航列物理結構 --- */
+
+.navbar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* 確保左右按鈕分開 */
+  padding: 0 8px; /* 縮減邊距，讓按鈕更貼近邊緣 */
+
+  background: var(--color-bg-main);
+  position: relative; /* 關鍵：作為標題置中的基準 */
+  z-index: 100;
+}
+
+/* 標題絕對置中：無視左右按鈕寬度 */
+.nav-brand {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: var(--color-text-main);
+  pointer-events: none; /* 防止標題遮擋按鈕點擊 */
+}
+
+/* 漢堡按鈕：徹底移除灰色背景 */
+.hamburger-btn {
+  background: transparent !important;
+  border: none;
+  cursor: pointer;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%; /* 點擊時的微圓角反應 */
+  transition: background 0.2s;
+}
+.hamburger-btn:active { background: rgba(255,255,255,0.05) !important; }
+
+/* 右上角新增按鈕專用樣式 */
+.navbar-add-btn {
+  background: var(--color-primary) !important;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-right: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+.navbar-add-btn:active { transform: scale(0.9); }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Type, User, Users, Calendar, Check, ChevronDown } from 'lucide-react';
+import { X, DollarSign, Type, User, Users, Check, ChevronDown, Tag as TagIcon } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { message, DatePicker, ConfigProvider } from 'antd';
 import dayjs from 'dayjs';
@@ -7,7 +7,7 @@ import dayjs from 'dayjs';
 const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, onRefresh }) => {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
-  const [activeMenu, setActiveMenu] = useState(null); // 'cat' | 'payer' | 'part'
+  const [activeMenu, setActiveMenu] = useState(null);
 
   const [formData, setFormData] = useState({
     title: '', amount: '', type: 'advance', category_id: null,
@@ -55,95 +55,106 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
   const getPersonnelName = (id) => personnel?.find(p => p.id === id)?.name || '未選擇';
 
   return (
-    <div className="modal-overlay active" onClick={onClose} style={{ zIndex: 5001 }}>
-      <div className="bottom-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-indicator"></div>
-        <div className="sheet-header">
-          <h3 className="modal-title">新增行程帳務</h3>
-          <button onClick={onClose} className="close-btn"><X size={24}/></button>
+    // 1. 調用地基 .drawer-overlay.active
+    <div className={`drawer-overlay ${isOpen ? 'active' : ''}`} onClick={onClose}>
+      
+      {/* 2. 調用地基 .drawer-container */}
+      <div className="drawer-container" onClick={(e) => e.stopPropagation()} style={{ padding: '24px' }}>
+        <div style={{ width: '40px', height: '5px', background: '#333', borderRadius: '10px', margin: '0 auto 20px' }} />
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '20px', fontWeight: '900', color: '#fff' }}>新增行程帳務</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}>
+            <X size={24}/>
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="band-form-layout">
-          {/* 金額區 */}
-          <div className="amount-hero-box">
-            <span className="unit">NT$</span>
-            <input type="number" placeholder="0" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="huge-input" required />
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          {/* 金額大字級 */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: '8px', margin: '10px 0 20px' }}>
+            <span style={{ fontSize: '20px', color: '#555', fontWeight: 900 }}>NT$</span>
+            <input 
+              type="number" placeholder="0" value={formData.amount} 
+              onChange={e => setFormData({...formData, amount: e.target.value})} 
+              style={{ background: 'transparent', border: 'none', fontSize: '48px', fontWeight: '900', color: 'var(--color-primary)', width: '180px', outline: 'none', textAlign: 'center' }} required 
+            />
           </div>
 
-          <div className="input-pill-container">
-            <div className="pill-main">
+          {/* 標題與日期 */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div className="band-input-pill" style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Type size={14} color="#666" />
-              <input type="text" placeholder="標題" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required />
+              <input 
+                type="text" placeholder="標題" value={formData.title} 
+                onChange={e => setFormData({...formData, title: e.target.value})} 
+                style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', width: '100%' }} required 
+              />
             </div>
             <ConfigProvider theme={{ token: { colorBgContainer: 'transparent', colorText: '#fff' } }}>
-              <DatePicker className="pill-date" suffixIcon={null} placeholder="日期" value={dayjs(formData.date)} onChange={(d, s) => setFormData({...formData, date: s})} />
+              <DatePicker 
+                className="band-input-pill" style={{ flex: 1.2, border: '1px solid var(--color-border)' }} 
+                suffixIcon={null} value={dayjs(formData.date)} onChange={(d, s) => setFormData({...formData, date: s})} 
+              />
             </ConfigProvider>
           </div>
 
-          <div className="segmented-wrapper">
-            <div className={`active-slide ${formData.type}`}></div>
-            <button type="button" className={formData.type === 'advance' ? 'active' : ''} onClick={() => setFormData({...formData, type: 'advance'})}>墊付</button>
-            <button type="button" className={formData.type === 'debt' ? 'active' : ''} onClick={() => setFormData({...formData, type: 'debt'})}>欠款</button>
+          {/* 墊付/欠款切換 */}
+          <div style={{ 
+            position: 'relative', width: '100%', background: '#111', borderRadius: '14px', 
+            padding: '4px', display: 'flex', height: '54px', overflow: 'hidden'
+          }}>
+            <div style={{ 
+              position: 'absolute', top: '4px', left: '4px', width: 'calc(50% - 4px)', height: 'calc(100% - 8px)', 
+              background: '#2a2a2a', borderRadius: '10px', transition: '0.3s',
+              transform: formData.type === 'debt' ? 'translateX(100%)' : 'translateX(0)'
+            }} />
+            <button type="button" onClick={() => setFormData({...formData, type: 'advance'})} style={{ flex: 1, zIndex: 2, background: 'none', border: 'none', color: formData.type === 'advance' ? 'var(--color-primary)' : '#888', fontWeight: 800, cursor: 'pointer' }}>墊付</button>
+            <button type="button" onClick={() => setFormData({...formData, type: 'debt'})} style={{ flex: 1, zIndex: 2, background: 'none', border: 'none', color: formData.type === 'debt' ? 'var(--color-primary)' : '#888', fontWeight: 800, cursor: 'pointer' }}>欠款</button>
           </div>
 
-          {/* 懸浮式清單區域 - 核心不擠壓設計 */}
-          <div className="selection-group-stack">
+          {/* 絕對定位懸浮選單區域 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             
-            {/* 1. 類型選擇器 */}
-            <div className="overlay-container">
-              <SelectionPill label="類型" value={getCategoryName(formData.category_id)} icon={<Tag size={14}/>} isOpen={activeMenu === 'cat'} onClick={() => setActiveMenu(activeMenu === 'cat' ? null : 'cat')} />
-              {activeMenu === 'cat' && (
-                <div className="floating-list shadow-lg">
-                  {categories.map(c => (
-                    <div key={c.id} className={`list-row ${formData.category_id === c.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, category_id: c.id}); setActiveMenu(null); }}>
-                      {c.name} {formData.category_id === c.id && <Check size={16} />}
-                    </div>
-                  ))}
+            <SelectionLayer label="類型" value={getCategoryName(formData.category_id)} icon={<TagIcon size={14}/>} isOpen={activeMenu === 'cat'} onClick={() => setActiveMenu(activeMenu === 'cat' ? null : 'cat')}>
+              {categories.map(c => (
+                <div key={c.id} className={`selection-item ${formData.category_id === c.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, category_id: c.id}); setActiveMenu(null); }}>
+                  {c.name} {formData.category_id === c.id && <Check size={16} />}
                 </div>
-              )}
-            </div>
+              ))}
+            </SelectionLayer>
 
-            {/* 2. 付款人選擇器 */}
-            <div className="overlay-container">
-              <SelectionPill label="付款人" value={getPersonnelName(formData.payer_id)} icon={<User size={14}/>} isOpen={activeMenu === 'payer'} onClick={() => setActiveMenu(activeMenu === 'payer' ? null : 'payer')} />
-              {activeMenu === 'payer' && (
-                <div className="floating-list shadow-lg">
-                  {personnel?.map(p => (
-                    <div key={p.id} className={`list-row ${formData.payer_id === p.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, payer_id: p.id}); setActiveMenu(null); }}>
-                      {p.name} {formData.payer_id === p.id && <Check size={16} />}
-                    </div>
-                  ))}
+            <SelectionLayer label="付款人" value={getPersonnelName(formData.payer_id)} icon={<User size={14}/>} isOpen={activeMenu === 'payer'} onClick={() => setActiveMenu(activeMenu === 'payer' ? null : 'payer')}>
+              {personnel?.map(p => (
+                <div key={p.id} className={`selection-item ${formData.payer_id === p.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, payer_id: p.id}); setActiveMenu(null); }}>
+                  {p.name} {formData.payer_id === p.id && <Check size={16} />}
                 </div>
-              )}
-            </div>
+              ))}
+            </SelectionLayer>
 
-            {/* 3. 參與成員選擇器 */}
-            <div className="overlay-container">
-              <SelectionPill label={formData.type === 'advance' ? "參與分擔" : "欠款人"} value={formData.type === 'advance' ? `${formData.participants.length} 人參與` : getPersonnelName(formData.debtor_id)} icon={<Users size={14}/>} isOpen={activeMenu === 'part'} onClick={() => setActiveMenu(activeMenu === 'part' ? null : 'part')} />
-              {activeMenu === 'part' && (
-                <div className="floating-list shadow-lg">
-                  {personnel?.map(p => {
-                    const isChecked = formData.type === 'advance' ? formData.participants.includes(p.id) : formData.debtor_id === p.id;
-                    return (
-                      <div key={p.id} className={`list-row ${isChecked ? 'active' : ''}`} onClick={() => {
-                        if (formData.type === 'debt') {
-                          setFormData({...formData, debtor_id: p.id}); setActiveMenu(null);
-                        } else {
-                          const next = isChecked ? formData.participants.filter(id => id !== p.id) : [...formData.participants, p.id];
-                          setFormData({...formData, participants: next});
-                        }
-                      }}>
-                        {p.name} {isChecked && <Check size={16} />}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <SelectionLayer label={formData.type === 'advance' ? "參與分擔" : "欠款人"} value={formData.type === 'advance' ? `${formData.participants.length} 人參與` : getPersonnelName(formData.debtor_id)} icon={<Users size={14}/>} isOpen={activeMenu === 'part'} onClick={() => setActiveMenu(activeMenu === 'part' ? null : 'part')}>
+              {personnel?.map(p => {
+                const isChecked = formData.type === 'advance' ? formData.participants.includes(p.id) : formData.debtor_id === p.id;
+                return (
+                  <div key={p.id} className={`selection-item ${isChecked ? 'active' : ''}`} onClick={() => {
+                    if (formData.type === 'debt') {
+                      setFormData({...formData, debtor_id: p.id}); setActiveMenu(null);
+                    } else {
+                      const next = isChecked ? formData.participants.filter(id => id !== p.id) : [...formData.participants, p.id];
+                      setFormData({...formData, participants: next});
+                    }
+                  }}>
+                    {p.name} {isChecked && <Check size={16} />}
+                  </div>
+                );
+              })}
+            </SelectionLayer>
+
           </div>
 
-          <button type="submit" className="band-main-btn" disabled={loading}>
-            確認新增帳務
+          {/* 調用地基 .band-btn-main */}
+          <button type="submit" className="band-btn-main" disabled={loading}>
+            {loading ? '正在儲存...' : '確認新增帳務'}
           </button>
         </form>
       </div>
@@ -151,14 +162,19 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
   );
 };
 
-// 輔助組件：Pill 樣式觸發器
-const SelectionPill = ({ label, value, icon, onClick, isOpen }) => (
-  <div className={`pill-trigger-box ${isOpen ? 'active' : ''}`} onClick={onClick}>
-    <div className="label">{icon} {label}</div>
-    <div className="value">{value} <ChevronDown size={14} className={`arrow ${isOpen ? 'up' : ''}`} /></div>
+// 檔案內補足：帶絕對定位邏輯的層級組件
+const SelectionLayer = ({ label, value, icon, isOpen, onClick, children }) => (
+  // 使用地基 .overlay-anchor
+  <div className="overlay-anchor">
+    <div className="band-input-pill" onClick={onClick} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderColor: isOpen ? 'var(--color-primary)' : 'var(--color-border)' }}>
+      <div style={{ color: '#888', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>{icon} {label}</div>
+      <div style={{ color: 'var(--color-primary)', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '15px' }}>
+        {value} <ChevronDown size={14} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: '0.3s' }} />
+      </div>
+    </div>
+    {/* 使用地基 .absolute-floating-menu */}
+    {isOpen && <div className="absolute-floating-menu">{children}</div>}
   </div>
 );
-
-const Tag = ({ size }) => <DollarSign size={size} />; // 補齊類型 icon
 
 export default AddTransactionModal;
