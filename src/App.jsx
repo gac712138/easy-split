@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabaseClient';
-import AuthView from './views/AuthView';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
-import SettingsView from './views/SettingsView';
+import AuthView from './views/AuthView';
 import ProjectDetailView from './views/ProjectDetailView'; 
+import SettingsView from './views/SettingsView'; 
 import CreateProjectModal from './components/CreateProjectModal';
 import AddTransactionModal from './components/AddTransactionModal'; 
 import ConfirmModal from './components/ConfirmModal';
@@ -14,32 +14,26 @@ import './App.css';
 function App() {
   const { user, signOut } = useAuth();
   const [currentView, setCurrentView] = useState('projects'); 
-  const [isMenuOpen, setIsMenuOpen] = useState(false); // Sidebar 狀態
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); 
+  const [selectedProject, setSelectedProject] = useState(null);
   const [projects, setProjects] = useState([]);
   const [personnel, setPersonnel] = useState([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
   const refreshGlobalData = useCallback(async (userId) => {
     if (!userId) return;
     setIsDataLoading(true);
     try {
-      const [projRes, persRes, themeRes] = await Promise.all([
+      const [projRes, persRes] = await Promise.all([
         supabase.from('projects').select(`*, project_members(personnel(*))`).eq('user_id', userId).order('created_at', { ascending: false }),
-        supabase.from('personnel').select('*').eq('user_id', userId).order('sort_order', { ascending: true }),
-        supabase.from('user_settings').select('key, value').eq('user_id', userId)
+        supabase.from('personnel').select('*').eq('user_id', userId).order('sort_order', { ascending: true })
       ]);
-      if (themeRes.data) {
-        themeRes.data.forEach(s => {
-          document.documentElement.style.setProperty(`--color-${s.key.replace('theme_', '')}`, s.value);
-        });
-      }
       if (projRes.data) setProjects(projRes.data);
       if (persRes.data) setPersonnel(persRes.data);
-    } catch (err) { console.error("預載資料失敗:", err); } 
+    } catch (err) { console.error("資料載入失敗", err); } 
     finally { setIsDataLoading(false); }
   }, []);
 
@@ -49,13 +43,13 @@ function App() {
 
   return (
     <div className="app-main-layout">
-      {/* 1. Sidebar 遮罩：點擊空白處關閉 Sidebar */}
+      {/* 側邊欄背景遮罩 */}
       <div 
         className={`sidebar-overlay ${isMenuOpen ? 'active' : ''}`} 
         onClick={() => setIsMenuOpen(false)} 
       />
 
-      {/* 2. 側邊欄：現在是抽屜式 (Fixed) */}
+      {/* 抽屜式側邊欄：地基已設定 transform: translateX(-100%) */}
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={() => setIsMenuOpen(false)} 
@@ -69,7 +63,7 @@ function App() {
         onSignOut={() => setIsLogoutConfirmOpen(true)} 
       />
 
-      {/* 3. 主內容區：始終保持 100% 寬度，不受 Sidebar 擠壓 */}
+      {/* 主內容區：地基設定 flex: 1，永遠佔滿剩餘寬度 */}
       <main className="content-area-wrapper">
         {currentView === 'projects' ? (
           !selectedProject ? (
@@ -105,7 +99,20 @@ function App() {
         />
       )}
 
-      <ConfirmModal open={isLogoutConfirmOpen} onConfirm={async () => { await signOut(); setIsLogoutConfirmOpen(false); }} onCancel={() => setIsLogoutConfirmOpen(false)} />
+      {/* 修正：加入 title 與 content 屬性 */}
+<ConfirmModal 
+  open={isLogoutConfirmOpen} 
+  title="確認登出系統？"
+  content="登出後需重新登入才能繼續管理您的分帳專案。"
+  okText="確認登出"
+  cancelText="取消"
+  isDanger={true} 
+  onConfirm={async () => { 
+    await signOut(); 
+    setIsLogoutConfirmOpen(false); 
+  }} 
+  onCancel={() => setIsLogoutConfirmOpen(false)} 
+/>
     </div>
   );
 }

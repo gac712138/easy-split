@@ -1,1365 +1,150 @@
-/* =========================================
-
-1. 配色系統 (KV 動態注入 vs Auth 隔離)
-
-========================================= */
-
+/* --- 1. 核心品牌變數 --- */
 :root {
-
-/* 登入/註冊專用 (強制系統預設) */
-
---auth-primary: #3a8fb7; /* 虎小島藍 */
-
---auth-bg: #121212;
-
---auth-text: #ffffff;
-
-
-
-/* 內部頁面變數 (由 KV 結構動態注入) */
-
---color-primary: #3a8fb7;
-
---color-bg: #121212;
-
---color-card: #1e1e1e;
-
---color-text-main: #ffffff;
-
---color-text-sub: #b3b3b3;
-
---color-text-muted: #666666;
-
+  --color-primary: #3a8fb7;
+  --color-beige: #f2ebe1;    /* 樂團感米色選中感 */
+  --color-bg-main: #121212;
+  --color-bg-pill: #1a1a1a;
+  --color-bg-overlay: rgba(30, 30, 30, 0.98);
+  --color-border: #333333;
+  --color-text-main: #ffffff;
+  --color-text-sub: #888888;
+  --font-main: "PingFang TC", "Microsoft JhengHei", sans-serif;
 }
 
-
-
-/* =========================================
-
-2. 基礎重置 & 全域文字規範
-
-========================================= */
-
+/* --- 2. 基礎地基：修正 Vite 預設樣式 --- */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-
-
-html, body, #root {
-
-width: 100%; min-height: 100dvh;
-
-background-color: var(--color-bg) !important;
-
-color: var(--color-text-main);
-
-font-family: 'Noto Sans TC', -apple-system, sans-serif;
-
-overflow-x: hidden;
-
-}
-
-
-
 body {
-
-overscroll-behavior-y: none; /* 防止移動端下拉重新整理 */
-
-touch-action: manipulation; /* 禁止手勢縮放 */
-
--webkit-user-select: none; user-select: none;
-
--webkit-tap-highlight-color: transparent;
-
+  margin: 0;
+  min-width: 320px;
+  background-color: var(--color-bg-main);
+  color: var(--color-text-main);
+  font-family: var(--font-main);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-
-
-/* 全域標題與文字色彩歸一化 */
-
-h1, h2, h3, h4, .nav-brand, .sheet-header h3, span, div {
-
-color: var(--color-text-main);
-
+#root {
+  width: 100%;
+  max-width: 100vw;
+  text-align: left; /* 強制修正 Vite 導致的置中問題 */
 }
 
-
-
-p, .text-secondary, .person-role {
-
-color: var(--color-text-sub);
-
+/* --- 3. Sidebar 抽屜佈局 (Drawer Layout) --- */
+.sidebar-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px); z-index: 6000;
+  opacity: 0; visibility: hidden; transition: all 0.3s ease;
 }
-
-
-
-/* 鎖死 16px 防止 iOS 自動縮放 */
-
-input, textarea {
-
--webkit-user-select: text; user-select: text;
-
-font-size: 16px !important;
-
-}
-
-
-
-/* =========================================
-
-3. 歸一化佈局 (64px/24px)
-
-========================================= */
-
-.app-main-layout { display: flex; flex-direction: column; min-height: 100dvh; }
-
-
-
-.navbar {
-
-height: 64px; /* 標題列高度鎖死 */
-
-display: flex; align-items: center; justify-content: space-between;
-
-padding: 0 20px; background-color: var(--color-bg);
-
-/* 移除分界線營造通透感 */
-
-border-bottom: none;
-
-}
-
-
-
-.content-area {
-
-padding: 24px; /* 統一內距 */
-
-flex: 1; overflow-y: auto;
-
-display: flex; flex-direction: column; gap: 12px;
-
-}
-
-
-
-/* =========================================
-
-4. 互動層 (Sidebar & Overlays)
-
-========================================= */
-
-.sidebar-overlay, .modal-overlay {
-
-position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.8);
-
-z-index: 1000; opacity: 0; visibility: hidden;
-
-transition: all 0.3s ease; backdrop-filter: blur(4px);
-
-}
-
-.active { opacity: 1; visibility: visible; }
-
-
+.sidebar-overlay.active { opacity: 1; visibility: visible; }
 
 .sidebar-drawer {
+  position: fixed; top: 0; left: 0; height: 100vh; width: 280px;
+  background-color: var(--color-bg-pill); border-right: 1px solid var(--color-border);
+  display: flex; flex-direction: column;
+  transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-overlay.active .sidebar-drawer { transform: translateX(0); }
 
-width: 280px; height: 100%; background-color: var(--color-card);
+/* Sidebar 選項 */
+.sidebar-item {
+  width: 100%; padding: 14px 16px; border: none; background: transparent;
+  color: var(--color-text-main); display: flex; align-items: center; gap: 12px;
+  border-radius: 12px; cursor: pointer; font-size: 15px; font-weight: 600;
+}
+.sidebar-item.active { background-color: var(--color-beige); color: #333333; }
 
-transform: translateX(-100%);
+/* --- 4. 內容區與卡片結構 (Layout & Cards) --- */
+.app-main-layout { display: flex; width: 100vw; height: 100vh; position: relative; }
+.content-area-wrapper { flex: 1; overflow-y: auto; height: 100%; }
 
-transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.band-container { padding: 24px; max-width: 800px; margin: 0 auto; width: 100%; }
 
+.band-card {
+  background: var(--color-bg-pill); border: 1px solid var(--color-border);
+  border-radius: 20px; padding: 20px; margin-bottom: 16px;
+  cursor: pointer; transition: transform 0.2s;
+}
+.band-card:active { transform: scale(0.98); }
+
+/* --- 5. 絕對定位懸浮選單：防擠壓關鍵 --- */
+.overlay-anchor { position: relative; width: 100%; }
+
+.absolute-floating-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; width: 100%;
+  background: var(--color-bg-overlay); backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border); border-radius: 16px;
+  z-index: 1000; padding: 8px; box-shadow: 0 15px 45px rgba(0,0,0,0.8);
+  max-height: 240px; overflow-y: auto;
 }
 
-.active .sidebar-drawer { transform: translateX(0); }
-
-
-
-.bottom-sheet {
-
-width: 100%; max-width: 500px; background-color: var(--color-card);
-
-border-radius: 30px 30px 0 0;
-
-padding: 20px 24px calc(30px + env(safe-area-inset-bottom));
-
-transform: translateY(100%);
-
-transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-
-}
-
-.active .bottom-sheet { transform: translateY(0); }
-
-
-
-/* =========================================
-
-5. 藥丸卡片與元件 (Pill Cards)
-
-========================================= */
-
-.settings-item-card, .person-pill-card, .sidebar-item {
-
-display: flex !important;
-
-align-items: center !important; /* Icon 上下至中關鍵 */
-
-justify-content: space-between;
-
-background-color: var(--color-card);
-
-padding: 16px 20px; border-radius: 50px;
-
-cursor: pointer; transition: all 0.2s ease;
-
-}
-
-
-
-/* 卡片與側邊欄 Icon/文字色彩同步 */
-
-.settings-item-card svg, .person-pill-card svg, .sidebar-item svg,
-
-.settings-item-card span, .person-name, .sidebar-item span {
-
-color: var(--color-text-main) !important;
-
-}
-
-
-
-.sidebar-item { gap: 16px !important; margin: 8px auto; width: 90%; }
-
-.sidebar-item.active { background-color: var(--color-primary); }
-
-.sidebar-item.active span, .sidebar-item.active svg { color: #ffffff !important; }
-
-
-
-/* 藥丸輸入框與主按鈕 */
-
-.input-wrapper { position: relative; width: 100%; margin-bottom: 12px; }
-
-.band-input {
-
-width: 100%; padding: 16px 50px; background-color: #1a1a1a;
-
-border: 1px solid #333; border-radius: 50px; color: var(--color-text-main);
-
-}
-
-
-
-.band-btn-primary {
-
-width: 100%; padding: 16px; border-radius: 50px; border: none;
-
-background-color: var(--color-primary);
-
-color: #ffffff !important; /* 按鈕文字寫死白色 */
-
-font-weight: bold; cursor: pointer; transition: transform 0.1s;
-
-}
-
-.band-btn-primary:active { transform: scale(0.97); }
-
-
-
-/* =========================================
-
-6. Auth 隔離區 (強制系統預設色)
-
-========================================= */
-
-.auth-view-container {
-
-background-color: var(--auth-bg) !important;
-
-color: var(--auth-text) !important;
-
-display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100dvh;
-
-}
-
-.auth-view-container .band-btn-primary { background-color: var(--auth-primary) !important; }
-
-
-
-/* =========================================
-
-Bottom Sheet 動畫鎖死
-
-========================================= */
-
-
-
-.modal-overlay {
-
-position: fixed;
-
-top: 0; left: 0; right: 0; bottom: 0; /* 確保覆蓋全螢幕 */
-
-background-color: rgba(0, 0, 0, 0.7);
-
-backdrop-filter: blur(8px);
-
-z-index: 3000;
-
-display: flex;
-
-align-items: flex-end; /* 關鍵：強制內容在底部 */
-
-justify-content: center;
-
-
-/* 顯隱狀態控制 */
-
-opacity: 0;
-
-visibility: hidden;
-
-transition: all 0.4s ease;
-
-}
-
-
-
-.modal-overlay.active {
-
-opacity: 1;
-
-visibility: visible;
-
-}
-
-
-
-.bottom-sheet {
-
-width: 100%;
-
-max-width: 500px;
-
-background-color: var(--color-card);
-
-border-top-left-radius: 30px;
-
-border-top-right-radius: 30px;
-
-padding: 20px 24px calc(40px + env(safe-area-inset-bottom));
-
-
-/* 初始位移：在螢幕下方 100% 處 */
-
-transform: translateY(100%);
-
-transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-
-}
-
-
-
-/* 當 active 時由下往上彈出 */
-
-.modal-overlay.active .bottom-sheet {
-
-transform: translateY(0);
-
-}
-
-
-
-/* 統一所有輸入框外觀 */
-
-.band-input,
-
-.ant-select-selector {
-
-background-color: #1a1a1a !important; /* 與專案名稱一致的深色 */
-
-border: 1px solid #333 !important;
-
-color: var(--color-text-main) !important;
-
-transition: all 0.3s ease;
-
-}
-
-
-
-/* 針對單行輸入框與下拉框（藥丸狀） */
-
-.band-input,
-
-.ant-select-selector {
-
-height: 52px !important;
-
-border-radius: 50px !important; /* 強制藥丸形狀 */
-
-padding: 0 24px !important;
-
-display: flex;
-
-align-items: center;
-
-}
-
-
-
-/* 針對多行備註（大圓角） */
-
-textarea.band-input {
-
-height: 120px !important;
-
-border-radius: 20px !important; /* 備註不需要藥丸狀，改用大圓角 */
-
-padding: 16px 24px !important;
-
-}
-
-
-
-/* 修正 AntD Select 內部的標籤樣式 */
-
-.ant-select-selection-item {
-
-background: var(--color-primary) !important;
-
-color: white !important;
-
-border: none !important;
-
-border-radius: 4px !important;
-
-}
-
-
-
-.ant-select-selection-placeholder {
-
-color: #666 !important;
-
-}
-
-
-
-/* 修正人員選擇標籤的文字內距與顏色 */
-
-.band-select-tag {
-
-display: flex;
-
-align-items: center;
-
-gap: 6px;
-
-background-color: #3a8fb7 !important; /* 直接鎖定 Tiger Island 主題藍 */
-
-color: #ffffff !important;
-
-padding: 0 12px !important; /* 加入左右 12px 的 Padding */
-
-height: 32px;
-
-border-radius: 50px; /* 藥丸狀標籤 */
-
-margin: 4px 4px 4px 0;
-
-font-size: 14px;
-
-font-weight: 500;
-
-}
-
-
-
-/* 修正關閉按鈕的間距 */
-
-.tag-close {
-
-cursor: pointer;
-
-display: flex;
-
-align-items: center;
-
-font-size: 16px;
-
-line-height: 1;
-
-margin-left: 2px;
-
-opacity: 0.8;
-
-}
-
-
-
-.tag-close:hover {
-
-opacity: 1;
-
-}
-
-
-
-/* 移除 AntD 預設標籤的背景影響 */
-
-.ant-select-selection-item {
-
-background: transparent !important;
-
-border: none !important;
-
-padding: 0 !important;
-
-display: flex !important;
-
-align-items: center !important;
-
-}
-
-
-
-/* --- 強制修正人員選取框樣式 --- */
-
-.band-select-custom.ant-select {
-
-height: 52px !important;
-
-}
-
-
-
-/* 藥丸背景與邊框 */
-
-.band-select-custom .ant-select-selector {
-
-background-color: #1a1a1a !important; /* 強制深色背景 */
-
-border: 1px solid #333 !important;
-
-border-radius: 50px !important; /* 強制藥丸形狀 */
-
-height: 52px !important;
-
-padding: 0 16px !important;
-
-display: flex !important;
-
-align-items: center !important;
-
-box-shadow: none !important;
-
-}
-
-/* --- 強制修正人員選取框主題樣式 --- */
-
-/* 1. 撐滿版且設定深色背景 */
-.band-select-custom.ant-select {
-  width: 100% !important;
-  height: 52px !important;
-}
-
-.band-select-custom .ant-select-selector {
-  background-color: #1a1a1a !important; /* 與專案名稱一致 */
-  border: 1px solid #333 !important;
-  border-radius: 50px !important; /* 藥丸狀 */
-  height: 52px !important;
-  padding: 0 16px !important;
-  display: flex !important;
-  align-items: center !important;
-  box-shadow: none !important;
-}
-
-/* 2. 標籤左右 Padding 與主題色修正 */
-.band-select-tag {
-  background-color: #3a8fb7 !important; /* 虎小島藍 */
-  color: #ffffff !important;
-  padding: 4px 14px !important; /* 補齊左右內距 */
-  border-radius: 50px !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px;
-  font-size: 14px;
-  height: 32px;
-}
-
-/* 3. 下拉選單主題化 */
-.ant-select-dropdown {
-  background-color: #1f1f1f !important;
-  border: 1px solid #333 !important;
-  border-radius: 16px !important;
-}
-
-.ant-select-item-option-content {
-  color: #ffffff !important;
-}
-
-.ant-select-item-option-selected {
-  background-color: rgba(58, 143, 183, 0.2) !important;
-}
-
-/* --- 專案卡片歸一化設計 --- */
-.nav-brand {
-  color: var(--color-primary);
-  font-weight: bold;
-  letter-spacing: 1px;
-  font-size: 18px;
-}
-
-.project-pill-card {
-  background-color: var(--color-card);
-  padding: 20px;
-  border-radius: 24px;
+/* 米色高亮選中項 */
+.selection-item {
+  padding: 14px 18px;
+  border-radius: 12px;
+  cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: all 0.2s ease;
+  color: var(--color-text-main); /* 預設白色文字 */
 }
 
-.project-pill-card:active { transform: scale(0.97); }
-
-.project-title {
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 6px;
-  color: var(--color-text-main);
+.selection-item.active {
+  background-color: var(--color-beige) !important; 
+  color: #121212 !important; /* 強制深色文字，解決看不清楚的問題 */
+  font-weight: 900; 
 }
 
-.project-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-text-sub);
-  font-size: 13px;
-  margin-bottom: 14px;
+/* 補足：滑鼠懸停時的微亮感，但不影響閱讀 */
+.selection-item:hover:not(.active) {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
-/* 成員縮寫堆疊樣式 */
-.member-stack {
-  display: flex;
-  align-items: center;
-}
-
-.member-dot {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+/* 如果你的 MemberSelect 有用到多選標籤 (Tags)，也一併修正 */
+.select-tag-pill {
   background-color: #333;
-  border: 2px solid var(--color-card);
-  margin-left: -10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-  color: #fff;
-}
-
-.member-dot:first-child { margin-left: 0; }
-.member-dot:nth-child(odd) { background-color: var(--color-primary); }
-
-.member-dot-more {
-  font-size: 12px;
-  color: var(--color-text-sub);
-  margin-left: 8px;
-}
-
-.progress-tag {
-  background-color: rgba(58, 143, 183, 0.1);
+  border: 1px solid #444;
   color: var(--color-primary);
-  padding: 4px 12px;
-  border-radius: 50px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.empty-state-card {
-  background-color: var(--color-card);
-  padding: 60px 20px;
-  border-radius: 24px;
-  text-align: center;
-  border: 1px dashed #333;
-  color: var(--color-text-sub);
-}
-
-/* --- 頂級專案卡片樣式 --- */
-.project-premium-card {
-position: relative;
-  background-color: var(--color-card);
-  border-radius: 28px;
-  padding: 15px 24px; /* 稍微減少上下內距，讓卡片更精鍊 */
-  margin-bottom: ５px; /* 核心修正：將 20px 縮減為 10px */
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: transform 0.2s ease;
-}
-
-.project-premium-card:active { transform: scale(0.98); }
-
-.project-premium-card:last-child {
-  margin-bottom: 0;
-}
-
-/* 右上角驚嘆號圖示 */
-.card-edit-btn {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  background: none;
-  border: none;
-  color: #d1d1d1;
-  padding: 8px;
-  cursor: pointer;
-  z-index: 10;
-}
-
-.card-edit-btn:hover { color: var(--color-primary); }
-
-.card-left-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* 主要文字 */
-.project-title-main {
-  font-size: 26px;
-  font-weight: 800;
-  color: #ffffff;
-  margin: 0;
-}
-
-/* 次要文字 */
-.project-date-sub {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #888;
-  font-size: 16px;
-  margin-bottom: 8px;
-}
-
-/* 成員縮寫圓圈 */
-.member-avatar-row {
-  display: flex;
-  gap: 8px;
-}
-
-.avatar-circle {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background-color: #d1d1d1; /* 依據圖片呈現灰色 */
-  color: #333;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 14px;
-}
-
-.card-right-section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-/* 進行中標籤：黃色底 */
-.status-badge-primary {
-  background-color: #d4a017; 
-  color: #fff;
-  padding: 8px 18px;
-  border-radius: 50px;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.chevron-icon {
-  color: #444;
-}
-
-/* --- 專案概況卡片 --- */
-.project-summary-card {
-  background: linear-gradient(135deg, var(--color-primary), #2a6f8f);
-  padding: 24px;
-  border-radius: 24px;
-  margin-bottom: 24px;
-  color: #fff;
-}
-
-.summary-item .label { font-size: 14px; opacity: 0.8; display: block; margin-bottom: 4px; }
-.summary-item .value { font-size: 28px; font-weight: 800; }
-
-/* --- 交易紀錄藥丸卡片 --- */
-.transaction-pill-card {
-  background-color: var(--color-card);
-  padding: 16px 20px;
-  border-radius: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-.card-left { display: flex; align-items: center; gap: 14px; }
-
-.category-icon-bg {
-  width: 40px; height: 40px;
-  background-color: rgba(58, 143, 183, 0.1);
-  border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-}
-
-.transaction-pill-card .title {
-  font-size: 16px; font-weight: 600; color: #fff; display: block; margin-bottom: 2px;
-}
-
-.sub-info {
-  display: flex; align-items: center; gap: 6px;
-  color: #888; font-size: 12px;
-}
-
-.card-right { text-align: right; }
-
-.amount { font-size: 16px; font-weight: 700; display: block; margin-bottom: 4px; }
-.amount.advance { color: #fff; }
-.amount.debt { color: #ff6b6b; }
-
-.type-tag {
-  font-size: 10px; padding: 2px 8px; border-radius: 4px; display: inline-block;
-}
-.type-tag.advance { background: rgba(255,255,255,0.1); color: #ccc; }
-.type-tag.debt { background: rgba(255,107,107,0.1); color: #ff6b6b; }
-
-/* --- 帳務彈窗專用樣式 --- */
-.band-input-flat {
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid #333;
-  color: var(--color-primary);
-  font-size: 32px;
-  font-weight: 800;
-  width: 100%;
-  padding: 8px 0;
-  margin-bottom: 16px;
-  outline: none;
-}
-
-.segmented-control {
-  display: flex;
-  background: #111;
-  border-radius: 12px;
-  padding: 4px;
-  margin-bottom: 20px;
-}
-
-.segmented-control button {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  background: none;
-  color: #666;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 0.3s;
-}
-
-.segmented-control button.active {
-  background: #333;
-  color: var(--color-primary);
-}
-
-.form-item label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #888;
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-
-.band-select-pill .ant-select-selector, 
-.band-datepicker-pill {
-  border-radius: 50px !important;
-  background-color: #1a1a1a !important;
-  border: 1px solid #333 !important;
-  height: 48px !important;
-  display: flex;
-  align-items: center;
-}
-
-.section-title {
-  font-size: 14px;
-  color: #888;
-  margin-bottom: 16px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.balance-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.balance-pill {
-  background: #1a1a1a;
-  padding: 12px 16px;
-  border-radius: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.balance-pill .amount.plus { color: var(--color-primary); font-weight: bold; }
-.balance-pill .amount.minus { color: #ff6b6b; font-weight: bold; }
-
-.settlement-card {
-  background: var(--color-card);
-  padding: 20px;
-  border-radius: 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.transfer-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 20px;
-}
-
-.transfer-info .amount {
-  font-size: 18px;
-  font-weight: 800;
-  color: #fff;
-  margin-bottom: 4px;
-}
-
-.arrow-line {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--color-primary);
-}
-
-.arrow-line .line {
-  flex: 1;
-  height: 2px;
-  background: currentColor;
-  opacity: 0.3;
-}
-
-.empty-settlement {
-  text-align: center;
-  padding: 60px 0;
-  color: #888;
-}
-
-/* --- AddTransactionModal 專屬優化 --- */
-.amount-input-wrapper {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 8px;
-  margin: 20px 0 32px;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-}
-
-.huge-amount-input {
-  background: transparent;
-  border: none;
-  font-size: 48px;
-  font-weight: 900;
-  color: var(--color-primary);
-  width: 200px;
-  text-align: left;
-  outline: none;
-}
-
-.currency-label {
-  font-size: 20px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 13px;
   font-weight: 700;
-  color: #666;
 }
 
-.label-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #888;
-  font-size: 14px;
-  margin-bottom: 8px;
+/* --- 6. 通用元件基礎 (Base Components) --- */
+.band-btn-main {
+  background: var(--color-primary); color: #fff; border: none;
+  padding: 16px; border-radius: 50px; font-weight: 800; cursor: pointer;
 }
-
 .band-input-pill {
+  background: #222; border: 1px solid var(--color-border);
+  border-radius: 50px; height: 50px; padding: 0 20px; color: #fff; outline: none;
+}
+
+/* --- 7. 抽屜式彈窗物理地基 (Bottom Sheet Physics) --- */
+.drawer-overlay {
+  position: fixed; inset: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 5000;
+  display: flex; align-items: flex-end; /* 物理對齊：底部 */
+  opacity: 0; visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+/* 啟動狀態 */
+.drawer-overlay.active { opacity: 1; visibility: visible; }
+
+.drawer-container {
   width: 100%;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  padding: 14px 20px;
-  border-radius: 50px;
-  color: #fff;
-  font-size: 16px;
-  margin-bottom: 20px;
+  max-width: 600px; /* PC 端限制寬度 */
+  margin: 0 auto;
+  background-color: var(--color-bg-pill);
+  border-radius: 28px 28px 0 0;
+  transform: translateY(100%); /* 物理起始點：螢幕下方 */
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 類型切換器 */
-.segmented-control {
-  position: relative;
-  display: flex;
-  background: #111;
-  border-radius: 12px;
-  padding: 4px;
-  margin-bottom: 24px;
-}
-
-.segmented-control button {
-  flex: 1;
-  padding: 12px;
-  border: none;
-  background: transparent;
-  color: #888;
-  z-index: 2;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.segment-bg {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  width: calc(50% - 4px);
-  height: calc(100% - 8px);
-  background: #333;
-  border-radius: 8px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.segment-bg.debt { transform: translateX(100%); }
-
-/* Ant Design Select 覆寫 */
-.band-select-pill .ant-select-selector {
-  background-color: #1a1a1a !important;
-  border: 1px solid #333 !important;
-  border-radius: 50px !important;
-  padding: 0 20px !important;
-}
-
-.band-btn-primary-full {
-  width: 100%;
-  background-color: var(--color-primary);
-  color: #fff;
-  border: none;
-  padding: 18px;
-  border-radius: 50px;
-  font-size: 18px;
-  font-weight: 800;
-  margin-top: 24px;
-  cursor: pointer;
-}
-
-
-/* --- 帳務彈窗旗艦樣式 --- */
-.amount-hero-input {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 12px;
-  margin: 10px 0 30px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.amount-hero-input .unit { font-size: 24px; font-weight: 700; color: #555; }
-.huge-input {
-  background: transparent; border: none; outline: none;
-  font-size: 44px; font-weight: 900; color: var(--color-primary);
-  width: 180px; text-align: left;
-}
-
-.input-row { display: flex; gap: 10px; margin-bottom: 20px; }
-.flex-2 { flex: 2; } .flex-1 { flex: 1; }
-
-.band-input-pill, .band-date-pill {
-  background-color: #1a1a1a !important;
-  border: 1px solid #333 !important;
-  border-radius: 50px !important;
-  color: #fff !important;
-  padding: 12px 20px !important;
-  height: 52px !important;
-}
-
-/* 類型切換 */
-.type-toggle-container {
-  position: relative;
-  display: flex;
-  background: #111;
-  border-radius: 16px;
-  padding: 4px;
-  margin-bottom: 24px;
-}
-
-.type-toggle-container button {
-  flex: 1; z-index: 2; padding: 12px; border: none; background: transparent;
-  color: #666; font-weight: 700; cursor: pointer; transition: color 0.3s;
-}
-
-.type-toggle-container button.active { color: var(--color-primary); }
-
-.active-bg {
-  position: absolute; top: 4px; left: 4px; width: calc(50% - 4px); height: calc(100% - 8px);
-  background: #252525; border-radius: 12px; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.active-bg.debt { transform: translateX(100%); }
-
-/* 修正下拉選單樣式與 UUID 隱藏 */
-.band-select-pill .ant-select-selector {
-  background-color: #1a1a1a !important;
-  border: 1px solid #333 !important;
-  border-radius: 50px !important;
-  height: 52px !important;
-  display: flex; align-items: center;
-  padding: 0 20px !important;
-}
-
-.band-btn-primary-main {
-  width: 100%; background: var(--color-primary); color: #fff;
-  border: none; padding: 18px; border-radius: 50px;
-  font-size: 18px; font-weight: 800; margin-top: 10px;
-}
-
-/* --- Band App 沉浸式表單 --- */
-.amount-hero {
-  display: flex; align-items: baseline; justify-content: center;
-  gap: 10px; margin: 20px 0 40px;
-}
-.amount-hero .unit { font-size: 24px; color: #555; font-weight: 700; }
-.amount-input {
-  background: transparent; border: none; font-size: 52px; font-weight: 900;
-  color: var(--color-primary); width: 220px; outline: none;
-}
-
-.input-pill-row { display: flex; gap: 10px; margin-bottom: 24px; }
-.pill-item {
-  background: #1a1a1a; border: 1px solid #333; border-radius: 50px;
-  height: 54px; display: flex; align-items: center; padding: 0 20px; gap: 10px;
-}
-.pill-item.main { flex: 2; }
-.pill-item.date { flex: 1.2; cursor: pointer; }
-.pill-item input { background: transparent; border: none; color: #fff; width: 100%; outline: none; }
-
-/* 類型切換器 */
-.segmented-pill {
-  position: relative; display: flex; background: #111; border-radius: 16px;
-  padding: 4px; margin-bottom: 30px; height: 54px;
-}
-.segmented-pill button {
-  flex: 1; z-index: 2; border: none; background: transparent;
-  color: #666; font-weight: 700; cursor: pointer; transition: 0.3s;
-}
-.segmented-pill button.active { color: var(--color-primary); }
-.active-block {
-  position: absolute; top: 4px; left: 4px; width: calc(50% - 4px); height: calc(100% - 8px);
-  background: #222; border-radius: 12px; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.active-block.debt { transform: translateX(100%); }
-
-/* 大型列表選擇 --- */
-.selection-stack { display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; }
-.trigger-pill {
-  background: #1a1a1a; padding: 18px 22px; border-radius: 18px;
-  display: flex; justify-content: space-between; align-items: center;
-  border: 1px solid #333; cursor: pointer;
-}
-.label-side { color: #888; display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.value-side { color: var(--color-primary); font-weight: 800; }
-
-.full-width-list {
-  background: #111; border-radius: 20px; padding: 8px;
-  display: flex; flex-direction: column; gap: 4px;
-}
-.list-item {
-  padding: 16px 20px; border-radius: 14px; color: #fff;
-  display: flex; justify-content: space-between; align-items: center;
-}
-/* 選中狀態：還原圖片中的米色 */
-.list-item.selected {
-  background-color: #F2EBE1;
-  color: #333; font-weight: 800;
-}
-
-.band-action-btn {
-  width: 100%; background: var(--color-primary); color: #fff;
-  border: none; padding: 20px; border-radius: 50px;
-  font-size: 18px; font-weight: 800; cursor: pointer;
-}
-
-/* --- 修正格式：防擠壓與還原 Band 風格 --- */
-.amount-hero-box {
-  display: flex; align-items: baseline; justify-content: center;
-  gap: 12px; margin: 10px 0 30px;
-}
-.amount-hero-box .unit { font-size: 22px; color: #555; font-weight: 800; }
-.huge-input {
-  background: transparent; border: none; font-size: 48px; font-weight: 900;
-  color: var(--color-primary); width: 200px; outline: none;
-}
-
-.input-pill-container { display: flex; gap: 10px; margin-bottom: 24px; }
-.pill-main, .pill-date {
-  background: #1a1a1a; border: 1px solid #333; border-radius: 50px;
-  height: 52px; display: flex; align-items: center; padding: 0 20px; gap: 10px;
-}
-.pill-main { flex: 2; } .pill-date { flex: 1.2; }
-.pill-main input { background: transparent; border: none; color: #fff; width: 100%; outline: none; }
-
-/* 展開式 Pill - 核心解決擠壓問題 */
-.selection-group-stack { display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; }
-
-.overlay-container {
-  position: relative; /* 關鍵：作為懸浮選單的基準點 */
-  width: 100%;
-}
-
-.expandable-pill {
-  background: #1a1a1a;
-  border-radius: 18px;
-  border: 1px solid #333;
-  overflow: hidden; /* 隱藏未展開的內容 */
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.pill-trigger {
-  padding: 16px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-}
-
-.pill-trigger .label { color: #888; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-.pill-trigger .value { color: var(--color-primary); font-weight: 800; display: flex; align-items: center; gap: 6px; }
-.pill-trigger .arrow { transition: transform 0.3s; color: #555; }
-
-/* 展開時的樣式變化 */
-.expandable-pill.expanded {
-  background: #111;
-  border-color: var(--color-primary);
-}
-.expandable-pill.expanded .arrow { transform: rotate(180deg); }
-
-/* 內部清單：平滑展開 */
-.pill-content {
-  max-height: 0;
-  overflow-y: auto;
-  transition: max-height 0.3s ease-in-out;
-  padding: 0 8px;
-}
-
-.expandable-pill.expanded .pill-content {
-  max-height: 240px; /* 固定最大高度，防止擠壓過多內容 */
-  padding-bottom: 8px;
-}
-
-.list-row {
-  padding: 14px 16px;
-  border-radius: 12px;
-  color: #fff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 15px;
-  margin-top: 4px;
-}
-
-/* 還原圖片中的米色高亮 */
-.list-row.active {
-  background-color: #F2EBE1;
-  color: #333;
-  font-weight: 800;
-}
-
-.band-main-btn {
-  width: 100%; background: var(--color-primary); color: #fff;
-  border: none; padding: 18px; border-radius: 50px; font-weight: 800; font-size: 18px;
-}
-
-.overlay-container {
-  position: relative; /* 關鍵：作為懸浮選單的基準點 */
-  width: 100%;
-}
-
-.pill-trigger-box {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  padding: 16px 20px;
-  border-radius: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.pill-trigger-box.active { border-color: var(--color-primary); }
-.pill-trigger-box .label { color: #888; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-.pill-trigger-box .value { color: var(--color-primary); font-weight: 800; display: flex; align-items: center; gap: 6px; }
-.pill-trigger-box .arrow { transition: transform 0.3s; color: #555; }
-.pill-trigger-box .arrow.up { transform: rotate(180deg); }
-
-/* 懸浮清單：直接覆蓋在元素上方 --- */
-.floating-list {
-  position: absolute;
-  top: calc(100% + 4px); /* 浮在 Pill 下方一點點 */
-  left: 0;
-  width: 100%;
-  background: rgba(26, 26, 26, 0.98);
-  backdrop-filter: blur(10px); /* 磨砂玻璃質感 */
-  border: 1px solid #333;
-  border-radius: 16px;
-  padding: 8px;
-  z-index: 100; /* 確保浮在最上層 */
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); /* 增加陰影感 */
-  max-height: 250px;
-  overflow-y: auto;
-}
-
-.list-row {
-  padding: 14px 16px;
-  border-radius: 12px;
-  color: #fff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 15px;
-}
-
-/* 還原圖片中的米色高亮 */
-.list-row.active {
-  background-color: #F2EBE1;
-  color: #333;
-  font-weight: 800;
-}
-
-/* 其餘樣式對齊 */
-.amount-hero-box { display: flex; align-items: baseline; justify-content: center; gap: 12px; margin-bottom: 30px; }
-.huge-input { background: transparent; border: none; font-size: 48px; font-weight: 900; color: var(--color-primary); width: 180px; outline: none; }
-.band-main-btn { width: 100%; background: var(--color-primary); color: #fff; border: none; padding: 18px; border-radius: 50px; font-weight: 800; font-size: 18px; }
+/* 抽屜滑出動作 */
+.drawer-overlay.active .drawer-container { transform: translateY(0); }

@@ -4,9 +4,6 @@ import { supabase } from '../lib/supabaseClient';
 import { message } from 'antd';
 import MemberSelect from './MemberSelect';
 
-/**
- * 修正點：加入 personnel prop 接收 App.jsx 預載的名單
- */
 const CreateProjectModal = ({ isOpen, onClose, user, personnel = [], onRefresh }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '' });
@@ -15,130 +12,97 @@ const CreateProjectModal = ({ isOpen, onClose, user, personnel = [], onRefresh }
 
   useEffect(() => {
     if (isOpen) {
-      if (user?.id || user?.user?.id) {
-        setInternalUser(user?.id ? user : user.user);
-      } else {
-        supabase.auth.getUser().then(({ data }) => {
-          if (data?.user) setInternalUser(data.user);
-        });
-      }
+      const u = user?.id ? user : user?.user;
+      if (u) setInternalUser(u);
     }
   }, [isOpen, user]);
 
-  // 1. 物理處理：將人員名單轉化為 Select 可讀的格式
-  const personnelOptions = (personnel || []).map(p => ({
-    label: p.name,
-    value: p.id
-  }));
+  const personnelOptions = (personnel || []).map(p => ({ label: p.name, value: p.id }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!internalUser?.id || loading) return;
     setLoading(true);
-
     try {
-      const { data: project, error: pError } = await supabase
-        .from('projects')
-        .insert([{ 
-          name: formData.name.trim(), 
-          description: formData.description.trim(), 
-          user_id: internalUser.id 
-        }])
-        .select().single();
-
+      const { data: project, error: pError } = await supabase.from('projects').insert([{ 
+        name: formData.name.trim(), description: formData.description.trim(), user_id: internalUser.id 
+      }]).select().single();
       if (pError) throw pError;
 
       if (selectedMemberIds.length > 0) {
-        const memberPayload = selectedMemberIds.map(mid => ({
-          project_id: project.id,
-          personnel_id: mid,      // 對齊你的資料庫欄位
-          user_id: internalUser.id 
+        const payload = selectedMemberIds.map(mid => ({ 
+          project_id: project.id, personnel_id: mid, user_id: internalUser.id 
         }));
-        
-        const { error: mError } = await supabase
-          .from('project_members')
-          .insert(memberPayload);
-
-        if (mError) throw mError;
+        await supabase.from('project_members').insert(payload);
       }
-
       message.success('專案建立成功');
-      setFormData({ name: '', description: '' });
-      setSelectedMemberIds([]);
-      onClose();
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      console.error("建立專案失敗:", err);
-      message.error('儲存失敗：' + err.message);
-    } finally {
-      setLoading(false);
-    }
+      setFormData({ name: '', description: '' }); setSelectedMemberIds([]);
+      onClose(); if (onRefresh) onRefresh();
+    } catch (err) { message.error(err.message); } finally { setLoading(false); }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay active" onClick={onClose} style={{ zIndex: 5000 }}>
-      <div className="bottom-sheet" onClick={(e) => e.stopPropagation()} style={{ overflow: 'visible' }}>
-        <div className="sheet-indicator"></div>
-        <div className="sheet-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--color-text-main)' }}>建立新分帳專案</h3>
-          <button onClick={onClose} className="hamburger-btn">
-            <X size={24} color="var(--color-text-main)"/>
+    // 調用地基 .drawer-overlay 與 .active
+    <div className={`drawer-overlay ${isOpen ? 'active' : ''}`} onClick={onClose}>
+      
+      {/* 調用地基 .drawer-container */}
+      <div className="drawer-container" onClick={(e) => e.stopPropagation()} style={{ padding: '24px' }}>
+        
+        {/* 檔案補足：抽屜把手 */}
+        <div style={{ width: '40px', height: '5px', background: '#333', borderRadius: '10px', margin: '0 auto 24px' }} />
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
+          <h3 style={{ fontSize: '22px', fontWeight: '900', color: '#fff' }}>建立新分帳專案</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}>
+            <X size={24}/>
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* 1. 專案名稱 */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-              <Layout size={18} color="var(--color-text-main)" />
-              <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--color-text-main)' }}>專案名稱</span>
-            </div>
+          {/* 補足細節：專案名稱 */}
+          <div style={{ marginBottom: '24px' }}>
+            <SectionLabel icon={<Layout size={18}/>} text="專案名稱" />
             <input 
-              type="text" className="band-input" placeholder="例如：虎小島一月分帳" 
-              value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required 
+              type="text" className="band-input-pill" placeholder="例如：虎小島一月分帳" 
+              value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} 
+              style={{ width: '100%' }} required 
             />
           </div>
 
-          {/* 2. 人員選擇：修正為接收 options */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-              <Users size={18} color="var(--color-text-main)" />
-              <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--color-text-main)' }}>選擇專案人員</span>
-            </div>
-            {internalUser?.id ? (
-              <MemberSelect 
-                options={personnelOptions} // 直接傳入處理好的選項
-                value={selectedMemberIds} 
-                onChange={setSelectedMemberIds} 
-              />
-            ) : (
-              <div className="band-input" style={{ display: 'flex', alignItems: 'center', color: '#666' }}>
-                身分同步中...
-              </div>
-            )}
+          {/* 補足細節：人員選擇 */}
+          <div style={{ marginBottom: '24px' }}>
+            <SectionLabel icon={<Users size={18}/>} text="選擇專案人員" />
+            <MemberSelect options={personnelOptions} value={selectedMemberIds} onChange={setSelectedMemberIds} />
           </div>
 
-          {/* 3. 備註 (選填) */}
+          {/* 補足細節：備註 */}
           <div style={{ marginBottom: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-              <FileText size={18} color="var(--color-text-main)" />
-              <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--color-text-main)' }}>備註 (選填)</span>
-            </div>
+            <SectionLabel icon={<FileText size={18}/>} text="備註 (選填)" />
             <textarea 
-              className="band-input" style={{ height: '100px', borderRadius: '20px', paddingTop: '15px' }}
+              className="band-input-pill" 
+              style={{ height: '100px', borderRadius: '20px', paddingTop: '15px', resize: 'none', width: '100%' }}
               value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})}
             />
           </div>
 
-          <button type="submit" className="band-btn-primary" disabled={loading || !internalUser?.id}>
-            {loading ? '處理中...' : '確認建立專案'}
+          {/* 調用地基 .band-btn-main */}
+          <button type="submit" className="band-btn-main" style={{ width: '100%' }} disabled={loading}>
+            {loading ? '正在建立...' : '確認建立專案'}
           </button>
         </form>
       </div>
     </div>
   );
 };
+
+// 檔案內補足：帶 Icon 的標籤
+const SectionLabel = ({ icon, text }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+    <span style={{ color: 'var(--color-primary)' }}>{icon}</span>
+    <span style={{ fontSize: '15px', fontWeight: '800', color: '#fff' }}>{text}</span>
+  </div>
+);
 
 export default CreateProjectModal;
