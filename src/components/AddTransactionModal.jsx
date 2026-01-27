@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, DollarSign, Type, User, Users, Check, ChevronDown, Tag as TagIcon } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import { message, DatePicker, ConfigProvider } from 'antd';
+import { message } from 'antd';
 import dayjs from 'dayjs';
+// 引入你提供的響應式日期組件
+import ResponsiveDatePicker from './ResponsiveDatePicker'; 
 
 const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, onRefresh }) => {
   const [loading, setLoading] = useState(false);
@@ -55,10 +57,7 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
   const getPersonnelName = (id) => personnel?.find(p => p.id === id)?.name || '未選擇';
 
   return (
-    // 1. 調用地基 .drawer-overlay.active
     <div className={`drawer-overlay ${isOpen ? 'active' : ''}`} onClick={onClose}>
-      
-      {/* 2. 調用地基 .drawer-container */}
       <div className="drawer-container" onClick={(e) => e.stopPropagation()} style={{ padding: '24px' }}>
         <div style={{ width: '40px', height: '5px', background: '#333', borderRadius: '10px', margin: '0 auto 20px' }} />
         
@@ -81,9 +80,9 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
             />
           </div>
 
-          {/* 標題與日期 */}
+          {/* 標題與日期列 */}
           <div style={{ display: 'flex', gap: '10px' }}>
-            <div className="band-input-pill" style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="band-input-pill" style={{ flex: 1.8, display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Type size={14} color="#666" />
               <input 
                 type="text" placeholder="標題" value={formData.title} 
@@ -91,15 +90,23 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
                 style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', width: '100%' }} required 
               />
             </div>
-            <ConfigProvider theme={{ token: { colorBgContainer: 'transparent', colorText: '#fff' } }}>
-              <DatePicker 
-                className="band-input-pill" style={{ flex: 1.2, border: '1px solid var(--color-border)' }} 
-                suffixIcon={null} value={dayjs(formData.date)} onChange={(d, s) => setFormData({...formData, date: s})} 
+            {/* 整合你的 ResponsiveDatePicker */}
+            <div style={{ flex: 1.2 }}>
+              <ResponsiveDatePicker 
+                value={dayjs(formData.date)} 
+                onChange={(val) => setFormData({...formData, date: val.format('YYYY-MM-DD')})}
+                style={{ 
+                   // 對齊地基配色
+                  backgroundColor: 'var(--color-bg-pill)', 
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '16px', // 改為與標題一致的圓角
+                  height: '50px' 
+                }}
               />
-            </ConfigProvider>
+            </div>
           </div>
 
-          {/* 墊付/欠款切換 */}
+          {/* 墊付/欠款切換滑軌 */}
           <div style={{ 
             position: 'relative', width: '100%', background: '#111', borderRadius: '14px', 
             padding: '4px', display: 'flex', height: '54px', overflow: 'hidden'
@@ -113,9 +120,8 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
             <button type="button" onClick={() => setFormData({...formData, type: 'debt'})} style={{ flex: 1, zIndex: 2, background: 'none', border: 'none', color: formData.type === 'debt' ? 'var(--color-primary)' : '#888', fontWeight: 800, cursor: 'pointer' }}>欠款</button>
           </div>
 
-          {/* 絕對定位懸浮選單區域 */}
+          {/* 智慧判斷方向的選單堆疊 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            
             <SelectionLayer label="類型" value={getCategoryName(formData.category_id)} icon={<TagIcon size={14}/>} isOpen={activeMenu === 'cat'} onClick={() => setActiveMenu(activeMenu === 'cat' ? null : 'cat')}>
               {categories.map(c => (
                 <div key={c.id} className={`selection-item ${formData.category_id === c.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, category_id: c.id}); setActiveMenu(null); }}>
@@ -149,11 +155,9 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
                 );
               })}
             </SelectionLayer>
-
           </div>
 
-          {/* 調用地基 .band-btn-main */}
-          <button type="submit" className="band-btn-main" disabled={loading}>
+          <button type="submit" className="band-btn-main" style={{ width: '100%' }} disabled={loading}>
             {loading ? '正在儲存...' : '確認新增帳務'}
           </button>
         </form>
@@ -162,19 +166,40 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
   );
 };
 
-// 檔案內補足：帶絕對定位邏輯的層級組件
-const SelectionLayer = ({ label, value, icon, isOpen, onClick, children }) => (
-  // 使用地基 .overlay-anchor
-  <div className="overlay-anchor">
-    <div className="band-input-pill" onClick={onClick} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderColor: isOpen ? 'var(--color-primary)' : 'var(--color-border)' }}>
-      <div style={{ color: '#888', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>{icon} {label}</div>
-      <div style={{ color: 'var(--color-primary)', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '15px' }}>
-        {value} <ChevronDown size={14} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: '0.3s' }} />
+const SelectionLayer = ({ label, value, icon, isOpen, onClick, children }) => {
+  const [placement, setPlacement] = useState('down');
+  const triggerRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setPlacement(spaceBelow < 250 ? 'up' : 'down');
+    }
+  }, [isOpen]);
+
+  return (
+    <div className="overlay-anchor" ref={triggerRef}>
+      <div 
+        className="band-input-pill" 
+        onClick={onClick} 
+        style={{ 
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+          cursor: 'pointer', borderColor: isOpen ? 'var(--color-primary)' : 'var(--color-border)' 
+        }}
+      >
+        <div style={{ color: '#888', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>{icon} {label}</div>
+        <div style={{ color: 'var(--color-primary)', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '15px' }}>
+          {value} <ChevronDown size={14} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: '0.3s' }} />
+        </div>
       </div>
+      {isOpen && (
+        <div className={`absolute-floating-menu ${placement === 'up' ? 'is-upwards' : ''}`}>
+          {children}
+        </div>
+      )}
     </div>
-    {/* 使用地基 .absolute-floating-menu */}
-    {isOpen && <div className="absolute-floating-menu">{children}</div>}
-  </div>
-);
+  );
+};
 
 export default AddTransactionModal;

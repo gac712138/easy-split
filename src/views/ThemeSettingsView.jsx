@@ -1,40 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Form, message, Card, Button, ColorPicker, Row, Col, ConfigProvider } from 'antd'; 
-import { ArrowLeft, Save } from 'lucide-react'; // 統一使用 lucide
+import { Form, message, ColorPicker, Row, Col, ConfigProvider } from 'antd'; 
+import { ChevronLeft, Save, Palette, Layout, Type } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 const ThemeSettingsView = ({ user, onBack }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
 
-  // 1. 樣式定義：對齊 24px Padding 與藥丸卡片感
-  const pickerStyle = { display: 'flex', justifyContent: 'flex-start', width: '100%' };
-  const sectionCardStyle = {
-    borderRadius: '20px',
-    border: 'none',
-    backgroundColor: 'var(--color-card)', 
-    boxShadow: 'none',
-    marginBottom: '16px' 
-  };
-  const sectionTitleStyle = {
-    fontSize: '14px', 
-    fontWeight: 'bold', 
-    color: 'var(--color-text-sub)', 
-    marginBottom: '12px', 
-    marginLeft: '4px'
-  };
-
-  // 2. 載入 KV 設定資料
+  // 1. 載入 KV 設定
   useEffect(() => {
     const loadSettings = async () => {
-      if (!user?.id) return; // 解決 image_814994.png 的 undefined 報錯
+      if (!user?.id) return;
       try {
-        const { data } = await supabase
-          .from('user_settings')
-          .select('key, value')
-          .eq('user_id', user.id);
-        
+        const { data } = await supabase.from('user_settings').select('key, value').eq('user_id', user.id);
         if (data) {
           const map = data.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
           form.setFieldsValue({
@@ -46,132 +24,125 @@ const ThemeSettingsView = ({ user, onBack }) => {
             theme_text_sub: map.theme_text_sub || '#b3b3b3',
           });
         }
-      } catch (error) {
-        console.error("載入失敗", error);
-      } finally {
-        setInitialLoading(false);
-      }
+      } catch (error) { console.error("載入失敗", error); }
     };
     loadSettings();
   }, [user?.id, form]);
 
-  // 3. 儲存設定並即時套用
+  // 2. 儲存設定並物理套用
   const handleSave = async (values) => {
     setLoading(true);
     try {
       const toHex = (val) => (typeof val === 'string' ? val : val.toHexString());
-      
       const updates = Object.keys(values).map(key => ({
-        user_id: user.id,
-        key: key,
-        value: toHex(values[key]),
-        updated_at: new Date()
+        user_id: user.id, key: key, value: toHex(values[key]), updated_at: new Date()
       }));
 
-      const { error } = await supabase
-        .from('user_settings')
-        .upsert(updates, { onConflict: 'user_id,key' });
-      
+      const { error } = await supabase.from('user_settings').upsert(updates, { onConflict: 'user_id,key' });
       if (error) throw error;
       
-      // 即時套用 CSS 變數
+      // 即時套用地基 CSS 變數
       updates.forEach(u => {
         const cssVar = `--color-${u.key.replace('theme_', '')}`;
         document.documentElement.style.setProperty(cssVar, u.value);
       });
-
-      message.success('配色設定已儲存並生效');
-    } catch (err) { 
-      message.error('儲存失敗：' + err.message); 
-    } finally { 
-      setLoading(false); 
-    }
+      message.success('配色已儲存並生效');
+    } catch (err) { message.error('儲434失敗：' + err.message); } finally { setLoading(false); }
   };
 
   return (
-    <div className="app-main-layout">
-      {/* 統一 64px Header */}
-      <header className="navbar">
-        <button onClick={onBack} className="hamburger-btn">
-          <ArrowLeft size={24} color="var(--color-text-main)" />
+    /* 核心物理修復：垂直堆疊防止內容失蹤 */
+    <div className="app-main-layout" style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
+      
+      {/* 1. 旗艦導航列：絕對置中標題 */}
+      <header className="navbar" style={{ flexShrink: 0, position: 'relative', width: '100%' }}>
+        <button onClick={onBack} className="hamburger-btn" style={{ zIndex: 10 }}>
+          <ChevronLeft size={24} color="#ffffff" />
         </button>
-        <span style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text-main)' }}>
-          主題配色設定
+        <span className="nav-brand" style={{
+            position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+            whiteSpace: 'nowrap', fontSize: '18px', fontWeight: '900', color: '#ffffff', pointerEvents: 'none'
+        }}>
+            主題配色設定
         </span>
-        <div style={{ width: 40 }}></div>
+        <div style={{ width: 44 }}></div>
       </header>
 
-      <main className="content-area">
-        <ConfigProvider
-          theme={{
-            token: {
-              colorBgElevated: 'var(--color-card)',
-              colorText: 'var(--color-text-main)',
-            },
-          }}
-        >
-          <Form form={form} layout="vertical" onFinish={handleSave}>
-            
-            <div style={sectionTitleStyle}>核心配色</div>
-            <Card bordered={false} style={sectionCardStyle} bodyStyle={{ padding: '20px' }}>
-              <Row gutter={[20, 20]}>
-                <Col span={12}>
-                  <Form.Item name="theme_primary" label={<span style={{color: 'var(--color-text-main)'}}>主色 (虎小島藍)</span>} style={{ marginBottom: 0 }}>
-                    <ColorPicker showText style={pickerStyle} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="theme_cancel" label={<span style={{color: 'var(--color-text-main)'}}>警告/取消色</span>} style={{ marginBottom: 0 }}>
-                    <ColorPicker showText style={pickerStyle} />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </Card>
+      {/* 2. 內容容器：地基寬度保護 */}
+      <div className="content-area-wrapper" style={{ flex: 1, overflowY: 'auto' }}>
+        <main className="band-container" style={{ paddingTop: '24px', paddingBottom: '40px' }}>
+          
+          <ConfigProvider theme={{ token: { colorBgElevated: '#1a1a1a', colorText: '#ffffff' } }}>
+            <Form form={form} layout="vertical" onFinish={handleSave}>
+              
+              {/* 配色區塊 1：核心顏色 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', paddingLeft: '4px' }}>
+                <Palette size={16} color="var(--color-primary)" />
+                <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-sub)' }}>核心配色</span>
+              </div>
+              <div className="band-card" style={{ padding: '24px', marginBottom: '24px' }}>
+                <Row gutter={[20, 20]}>
+                  <Col span={12}>
+                    <Form.Item name="theme_primary" label={<span style={{color: '#888', fontWeight: 800, fontSize: '13px'}}>主色</span>} style={{ marginBottom: 0 }}>
+                      <ColorPicker showText style={{ width: '100%', justifyContent: 'flex-start', background: '#111', border: '1px solid #333' }} />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="theme_cancel" label={<span style={{color: '#888', fontWeight: 800, fontSize: '13px'}}>警告色</span>} style={{ marginBottom: 0 }}>
+                      <ColorPicker showText style={{ width: '100%', justifyContent: 'flex-start', background: '#111', border: '1px solid #333' }} />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </div>
 
-            <div style={sectionTitleStyle}>背景層次</div>
-            <Card bordered={false} style={sectionCardStyle} bodyStyle={{ padding: '20px' }}>
-              <Row gutter={[20, 20]}>
-                <Col span={12}>
-                  <Form.Item name="theme_bg" label={<span style={{color: 'var(--color-text-main)'}}>App 背景</span>} style={{ marginBottom: 0 }}>
-                    <ColorPicker showText style={pickerStyle} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="theme_card" label={<span style={{color: 'var(--color-text-main)'}}>卡片底色</span>} style={{ marginBottom: 0 }}>
-                    <ColorPicker showText style={pickerStyle} />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </Card>
+              {/* 配色區塊 2：背景層次 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', paddingLeft: '4px' }}>
+                <Layout size={16} color="var(--color-primary)" />
+                <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-sub)' }}>背景層次</span>
+              </div>
+              <div className="band-card" style={{ padding: '24px', marginBottom: '24px' }}>
+                <Row gutter={[20, 20]}>
+                  <Col span={12}>
+                    <Form.Item name="theme_bg" label={<span style={{color: '#888', fontWeight: 800, fontSize: '13px'}}>App 背景</span>} style={{ marginBottom: 0 }}>
+                      <ColorPicker showText style={{ width: '100%', justifyContent: 'flex-start', background: '#111', border: '1px solid #333' }} />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="theme_card" label={<span style={{color: '#888', fontWeight: 800, fontSize: '13px'}}>卡片底色</span>} style={{ marginBottom: 0 }}>
+                      <ColorPicker showText style={{ width: '100%', justifyContent: 'flex-start', background: '#111', border: '1px solid #333' }} />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </div>
 
-            <div style={sectionTitleStyle}>文字色彩</div>
-            <Card bordered={false} style={sectionCardStyle} bodyStyle={{ padding: '20px' }}>
-              <Row gutter={[20, 20]}>
-                <Col span={12}>
-                  <Form.Item name="theme_text_main" label={<span style={{color: 'var(--color-text-main)'}}>主要文字</span>} style={{ marginBottom: 0 }}>
-                    <ColorPicker showText style={pickerStyle} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="theme_text_sub" label={<span style={{color: 'var(--color-text-main)'}}>次要文字</span>} style={{ marginBottom: 0 }}>
-                    <ColorPicker showText style={pickerStyle} />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </Card>
+              {/* 配色區塊 3：文字色彩 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', paddingLeft: '4px' }}>
+                <Type size={16} color="var(--color-primary)" />
+                <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-sub)' }}>文字視覺</span>
+              </div>
+              <div className="band-card" style={{ padding: '24px', marginBottom: '32px' }}>
+                <Row gutter={[20, 20]}>
+                  <Col span={12}>
+                    <Form.Item name="theme_text_main" label={<span style={{color: '#888', fontWeight: 800, fontSize: '13px'}}>主要文字</span>} style={{ marginBottom: 0 }}>
+                      <ColorPicker showText style={{ width: '100%', justifyContent: 'flex-start', background: '#111', border: '1px solid #333' }} />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="theme_text_sub" label={<span style={{color: '#888', fontWeight: 800, fontSize: '13px'}}>次要文字</span>} style={{ marginBottom: 0 }}>
+                      <ColorPicker showText style={{ width: '100%', justifyContent: 'flex-start', background: '#111', border: '1px solid #333' }} />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </div>
 
-            {/* 按鈕文字寫死白色 */}
-            <button 
-              type="submit" 
-              className="band-btn-primary" 
-              disabled={loading}
-              style={{ marginTop: '10px', color: '#ffffff' }} 
-            >
-              {loading ? '儲存中...' : <><Save size={20} style={{marginRight: 8}}/> 儲存我的專屬配色</>}
-            </button>
-          </Form>
-        </ConfigProvider>
-      </main>
+              <button type="submit" className="band-btn-main" style={{ width: '100%', gap: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} disabled={loading}>
+                {loading ? '正在儲存配色...' : <><Save size={20} /> 儲存並套用主題</>}
+              </button>
+            </Form>
+          </ConfigProvider>
+          
+        </main>
+      </div>
     </div>
   );
 };

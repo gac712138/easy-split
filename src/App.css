@@ -70,12 +70,29 @@ body {
 /* --- 5. 絕對定位懸浮選單：防擠壓關鍵 --- */
 .overlay-anchor { position: relative; width: 100%; }
 
+/* --- 5. 絕對定位懸浮選單：增加往上長的變體 --- */
 .absolute-floating-menu {
-  position: absolute; top: calc(100% + 6px); left: 0; width: 100%;
-  background: var(--color-bg-overlay); backdrop-filter: blur(12px);
-  border: 1px solid var(--color-border); border-radius: 16px;
-  z-index: 1000; padding: 8px; box-shadow: 0 15px 45px rgba(0,0,0,0.8);
-  max-height: 240px; overflow-y: auto;
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background: var(--color-bg-overlay);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  z-index: 1000;
+  padding: 8px;
+  box-shadow: 0 15px 45px rgba(0,0,0,0.8);
+  max-height: 240px;
+  overflow-y: auto;
+  
+  /* 預設：往下長 */
+  top: calc(100% + 6px); 
+}
+
+/* 補足：往上長的物理位置 */
+.absolute-floating-menu.is-upwards {
+  top: auto;
+  bottom: calc(100% + 6px); /* 改為鎖定底部，往上推 */
 }
 
 /* 米色高亮選中項 */
