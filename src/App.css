@@ -244,3 +244,25 @@ body, html {
 .brand-logo-tinted:hover {
   transform: scale(1.05); /* 增加一點點律動感 */
 }
+
+/* App.css */
+
+html, body {
+  /* 防止移動端頁面下拉重新整理或彈跳感 */
+  overscroll-behavior-y: none; 
+  /* 停用所有手勢縮放，只允許滾動與點擊 */
+  touch-action: manipulation;
+  /* 禁止選取文字（非輸入框區域），增加原生 App 的封閉感 */
+  -webkit-user-select: none;
+  user-select: none;
+  /* 移除點擊時出現的灰色半透明背景 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 確保輸入框可以被選取 */
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  /* 關鍵：字體一定要 16px 以上，否則 iOS 會強制縮放畫面 */
+  font-size: 16px !important; 
+}
