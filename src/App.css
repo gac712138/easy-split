@@ -1,42 +1,95 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* 1. 全域重置，移除預設邊距 */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+body, html {
+  background-color: #121212;
+  height: 100%;
+  width: 100%;
+  color: white;
+  font-family: -apple-system, system-ui, sans-serif;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* 2. 核心：完美置中容器 */
+.auth-view-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* 垂直置中 */
+  align-items: center;     /* 水平置中 */
+  min-height: 100dvh;      /* 針對手機優化的動態視窗高度 */
+  width: 100%;
+  padding: 20px;           /* 手機時的左右留白 */
+  background-color: #121212;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* 3. 內容寬度容器 */
+.auth-content-wrapper {
+  width: 100%;             /* 手機時滿版 */
+  max-width: 320px;        /* 電腦時限制寬度，像 Band App 一樣精緻 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.card {
-  padding: 2em;
+/* 4. 藥丸形狀輸入框 */
+.input-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: 12px;
 }
 
-.read-the-docs {
-  color: #888;
+.input-icon {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+}
+
+.band-input {
+  width: 100%;
+  padding: 16px 50px;      /* 左右留空間給 Icon */
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 50px;     /* 藥丸形狀關鍵 */
+  color: white;
+  font-size: 16px;
+  outline: none;
+  transition: all 0.3s;
+}
+
+.band-input:focus {
+  border-color: #3a8fb7;
+  background-color: #222;
+}
+
+/* 5. 密碼切換按鈕 (固定在輸入框內) */
+.password-toggle {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* 6. 藥丸按鈕 */
+.band-btn-primary {
+  width: 100%;
+  padding: 16px;
+  background-color: #3a8fb7;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-size: 17px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 15px;
 }
