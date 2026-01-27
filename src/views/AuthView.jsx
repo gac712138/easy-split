@@ -9,10 +9,14 @@ const AuthView = () => {
       <div className="auth-content-wrapper">
         
         {/* Logo 區域 */}
-        <div style={{ marginBottom: '50px' }}>
-          {/* 請確保 logo.png 放在 public/ 資料夾下 */}
-          <img src="/logo.png" alt="EasySplit Logo" style={{ width: '180px', height: 'auto' }} />
-        </div>
+<div className="logo-section">
+  {/* 不再使用 <img>，改用帶有遮罩樣式的 <div> */}
+  <div 
+    className="brand-logo-tinted" 
+    role="img" 
+    aria-label="EasySplit Logo"
+  ></div>
+</div>
 
         <AuthForm isSignUp={isSignUp} />
 
