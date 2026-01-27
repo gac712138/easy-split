@@ -16,14 +16,15 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
-  // 1. 載入並注入 KV 配色設定
+  // 1. 核心：動態注入 KV 配色設定
   useEffect(() => {
-    if (!user?.id) return; // 安全檢查，解決 image_814994.png 的崩潰
+    if (!user?.id) return; 
 
     const loadTheme = async () => {
       const { data } = await supabase.from('user_settings').select('key, value').eq('user_id', user.id);
       if (data) {
         data.forEach(setting => {
+          // 將 key (如 theme_primary) 轉換為 CSS 變數 (--color-primary)
           const cssVar = `--color-${setting.key.replace('theme_', '')}`;
           document.documentElement.style.setProperty(cssVar, setting.value);
         });
@@ -36,6 +37,7 @@ function App() {
 
   return (
     <div className="app-main-layout">
+      {/* 2. 側邊欄：傳遞 user 與導航狀態 */}
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={() => setIsMenuOpen(false)} 
@@ -45,6 +47,7 @@ function App() {
         onSignOut={() => setIsLogoutConfirmOpen(true)} 
       />
 
+      {/* 3. 主內容區：視圖切換 */}
       <main className="content-area-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {currentView === 'projects' ? (
           <Dashboard 
@@ -59,6 +62,7 @@ function App() {
         )}
       </main>
 
+      {/* 4. 彈出層 */}
       <CreateProjectModal 
         isOpen={isCreateModalOpen} 
         onClose={() => setIsCreateModalOpen(false)}
@@ -66,6 +70,8 @@ function App() {
 
       <ConfirmModal
         open={isLogoutConfirmOpen}
+        title="確認要登出嗎？"
+        content="登出後需要重新登入才能管理分帳。"
         onConfirm={async () => { await signOut(); setIsLogoutConfirmOpen(false); }}
         onCancel={() => setIsLogoutConfirmOpen(false)}
       />

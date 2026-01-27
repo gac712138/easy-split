@@ -1,90 +1,88 @@
 import React, { useState } from 'react';
-import { Menu, Users, Tags, Lock, ChevronRight, Palette } from 'lucide-react';
+import { 
+  Menu, Users, Tags, Palette, Lock, ChevronRight, MessageSquare 
+} from 'lucide-react';
 import PersonnelView from './PersonnelView';
 import EventTypeMgmtView from './EventTypeMgmtView';
-import ThemeSettingsView from './ThemeSettingsView'; // 1. 引入主題設定視圖
+import ThemeSettingsView from './ThemeSettingsView'; 
 
-const SettingsView = ({ onOpenMenu, user, onRefresh }) => {
+/**
+ * 1. 統一的項目元件：確保 Icon 上下至中且顏色對齊
+ */
+const SettingItem = ({ icon: Icon, label, onClick }) => (
+  <div className="settings-item-card" onClick={onClick}>
+    <div className="settings-item-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      {/* 修正：Icon 與文字皆使用 var(--color-text-main) */}
+      <Icon size={20} color="var(--color-text-main)" />
+      <span style={{ color: 'var(--color-text-main)', fontSize: '16px', fontWeight: '500' }}>
+        {label}
+      </span>
+    </div>
+    {/* 修正：右側箭頭同步使用主文字色 */}
+    <ChevronRight size={18} color="var(--color-text-main)" />
+  </div>
+);
+
+const SettingsView = ({ onOpenMenu, user }) => {
   const [subView, setSubView] = useState(null);
 
-  // 1. 子視圖切換邏輯：確保每個頁面都能正確返回
-  if (subView === 'personnel') return <PersonnelView onBack={() => setSubView(null)} user={user} onRefresh={onRefresh} />;
-  
-  if (subView === 'types') return <EventTypeMgmtView onBack={() => setSubView(null)} user={user} onRefresh={onRefresh} />;
-  
+  // 子視圖切換邏輯
+  if (subView === 'personnel') return <PersonnelView onBack={() => setSubView(null)} user={user} />;
+  if (subView === 'types') return <EventTypeMgmtView onBack={() => setSubView(null)} user={user} />;
   if (subView === 'theme') return <ThemeSettingsView onBack={() => setSubView(null)} user={user} />;
 
   return (
-    <div className="app-main-layout" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      
-      {/* 2. 標題與導航欄：高度鎖死 64px */}
-      <header style={{ 
-        height: '64px', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        padding: '0 20px', 
-        borderBottom: '1px solid #222',
-        backgroundColor: 'var(--color-bg)' 
-      }}>
-        <button 
-          onClick={onOpenMenu} 
-          style={{ background: 'none', border: 'none', color: 'var(--color-text-main)', cursor: 'pointer', padding: '8px' }}
-        >
-          <Menu size={24}/>
+    <div className="app-main-layout">
+      {/* 2. 歸一化 Header：64px 高度，移除分界線 */}
+      <header className="navbar" style={{ borderBottom: 'none' }}>
+        <button onClick={onOpenMenu} className="hamburger-btn">
+          <Menu size={24} color="var(--color-text-main)"/>
         </button>
-        
         <span style={{ 
-          color: 'var(--color-text-main)', 
+          fontSize: '18px', 
           fontWeight: 'bold', 
-          letterSpacing: '1px',
-          fontSize: '18px' 
+          color: 'var(--color-text-main)' 
         }}>
           系統設定
         </span>
-        
         <div style={{ width: 40 }}></div>
       </header>
 
-      {/* 3. 主內容區：套用 24px Padding */}
-      <main style={{ padding: '24px', flex: 1, backgroundColor: 'var(--color-bg)' }}>
-        
-        {/* A. 人員名單管理 (User-level) */}
-        <div className="settings-item-card" onClick={() => setSubView('personnel')}>
-          <div className="settings-item-left">
-            <Users size={20} color="var(--color-primary)" />
-            <span>人員名單管理</span>
-          </div>
-          <ChevronRight size={18} color="var(--color-text-muted)" />
-        </div>
+      {/* 3. 內容區域：24px 內距，藥丸卡片堆疊 */}
+      <main className="content-area">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          
+          <SettingItem 
+            icon={Users} 
+            label="人員名單管理" 
+            onClick={() => setSubView('personnel')} 
+          />
 
-        {/* B. 活動類型管理 (Categories) */}
-        <div className="settings-item-card" onClick={() => setSubView('types')}>
-          <div className="settings-item-left">
-            <Tags size={20} color="var(--color-primary)" />
-            <span>活動類型管理</span>
-          </div>
-          <ChevronRight size={18} color="var(--color-text-muted)" />
-        </div>
+          <SettingItem 
+            icon={Tags} 
+            label="活動類型管理" 
+            onClick={() => setSubView('types')} 
+          />
 
-        {/* C. 主題色設定 (綁定在 User) */}
-        <div className="settings-item-card" onClick={() => setSubView('theme')}>
-          <div className="settings-item-left">
-            <Palette size={20} color="var(--color-primary)" />
-            <span>主題色設定 (外觀)</span>
-          </div>
-          <ChevronRight size={18} color="var(--color-text-muted)" />
-        </div>
+          <SettingItem 
+            icon={Palette} 
+            label="主題配色設定 (外觀)" 
+            onClick={() => setSubView('theme')} 
+          />
 
-        {/* D. 帳號密碼管理 (Auth) */}
-        <div className="settings-item-card">
-          <div className="settings-item-left">
-            <Lock size={20} color="var(--color-primary)" />
-            <span>帳號密碼管理</span>
-          </div>
-          <ChevronRight size={18} color="var(--color-text-muted)" />
-        </div>
+          <SettingItem 
+            icon={MessageSquare} 
+            label="Discord 頻道管理" 
+            onClick={() => { /* 這裡串接 Discord 邏輯 */ }} 
+          />
 
+          <SettingItem 
+            icon={Lock} 
+            label="帳號密碼管理" 
+            onClick={() => { /* 這裡串接密碼修改彈窗 */ }} 
+          />
+          
+        </div>
       </main>
     </div>
   );

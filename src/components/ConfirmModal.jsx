@@ -1,14 +1,24 @@
-// src/components/ConfirmModal.jsx
 import React from 'react';
-import { Modal, Button, ConfigProvider } from 'antd'; // 引入 ConfigProvider
+import { Modal, Button, ConfigProvider } from 'antd';
 import { ExclamationCircleFilled } from '@ant-design/icons';
 
-const ConfirmModal = ({ open, onCancel, onConfirm, title, content, loading = false, okText = "確認", cancelText = "取消", isDanger = true }) => {
+const ConfirmModal = ({ 
+  open, 
+  onCancel, 
+  onConfirm, 
+  title, 
+  content, 
+  loading = false,
+  okText = "確認",
+  cancelText = "取消",
+  isDanger = true 
+}) => {
   return (
+    /* 1. 使用 ConfigProvider 確保 AntD 基礎樣式對齊主題 */
     <ConfigProvider
       theme={{
         token: {
-          colorBgElevated: 'var(--color-card)', // 關鍵：強制修改 AntD 彈窗背景色
+          colorBgElevated: 'var(--color-card)', 
           colorText: 'var(--color-text-main)',
         },
       }}
@@ -21,9 +31,10 @@ const ConfirmModal = ({ open, onCancel, onConfirm, title, content, loading = fal
         centered
         width={320}
         zIndex={3000}
+        /* 2. 鋼鐵規範：背景使用 var(--color-card)，24px 圓角 */
         styles={{ 
           content: { 
-            backgroundColor: 'var(--color-card)', // 確保內容區也是深色
+            backgroundColor: 'var(--color-card)', 
             borderRadius: '24px', 
             padding: '24px', 
             textAlign: 'center',
@@ -33,15 +44,37 @@ const ConfirmModal = ({ open, onCancel, onConfirm, title, content, loading = fal
         }}
       >
         <div style={{ marginBottom: '24px' }}>
-          <ExclamationCircleFilled style={{ fontSize: '48px', color: isDanger ? '#ff4d4f' : 'var(--color-primary)', marginBottom: '16px' }} />
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text-main)' }}>
+          {/* 圖示顏色連動：危險則用紅色，否則用主色 */}
+          <ExclamationCircleFilled 
+            style={{ 
+              fontSize: '48px', 
+              color: isDanger ? '#ff4d4f' : 'var(--color-primary)', 
+              marginBottom: '16px' 
+            }} 
+          />
+          
+          {/* 3. 標題：強制使用 theme_text_main */}
+          <h3 style={{ 
+            margin: '0 0 8px 0', 
+            fontSize: '18px', 
+            fontWeight: 'bold', 
+            color: 'var(--color-text-main)' 
+          }}>
             {title}
           </h3>
-          <div style={{ fontSize: '14px', color: 'var(--color-text-sub)', lineHeight: '1.5' }}>
+          
+          {/* 4. 內文：強制使用 theme_text_main */}
+          <div style={{ 
+            fontSize: '14px', 
+            color: 'var(--color-text-main)', 
+            lineHeight: '1.5',
+            opacity: 0.9 
+          }}>
             {content}
           </div>
         </div>
 
+        {/* 5. 底部按鈕區：文字全部寫死白色 */}
         <div style={{ display: 'flex', gap: '12px' }}>
           <Button 
             block 
@@ -50,9 +83,10 @@ const ConfirmModal = ({ open, onCancel, onConfirm, title, content, loading = fal
             style={{ 
               borderRadius: '50px', 
               border: 'none', 
-              backgroundColor: 'var(--color-bg)', // 底部按鈕背景色
-              color: 'var(--color-text-sub)', 
-              height: '48px'
+              backgroundColor: 'var(--color-bg)', 
+              color: '#ffffff', // 修正：文字寫死白色
+              height: '48px',
+              fontWeight: 600
             }}
           >
             {cancelText}
@@ -68,7 +102,10 @@ const ConfirmModal = ({ open, onCancel, onConfirm, title, content, loading = fal
               borderRadius: '50px', 
               fontWeight: 600, 
               height: '48px',
-              backgroundColor: isDanger ? '#ff4d4f' : 'var(--color-primary)' 
+              color: '#ffffff', // 修正：文字寫死白色
+              backgroundColor: isDanger ? '#ff4d4f' : 'var(--color-primary)',
+              border: 'none',
+              boxShadow: 'none'
             }}
           >
             {okText}
