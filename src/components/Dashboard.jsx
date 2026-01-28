@@ -7,7 +7,7 @@ import { message } from 'antd';
 import ConfirmModal from '../components/ConfirmModal'; 
 
 const Dashboard = ({ 
-  user, // ★ 1. 確保這裡有接收 user
+  user, 
   projects, 
   loading, 
   onOpenMenu, 
@@ -74,7 +74,7 @@ const Dashboard = ({
                 <ProjectCard 
                   key={project.id} 
                   project={project} 
-                  user={user} // ★ 2. 將 user 傳遞給卡片
+                  user={user} 
                   onClick={() => onSelectProject(project)} 
                   onEdit={onEditProject}
                   onDelete={() => setDeleteTarget(project)} 
@@ -102,7 +102,7 @@ const Dashboard = ({
 };
 
 /**
- * 專案卡片
+ * 專案卡片 Component
  */
 const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
@@ -110,7 +110,7 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
   const members = project.project_members?.map(pm => pm.personnel) || [];
   const formattedDate = new Date(project.created_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
-  // ★ 3. 判斷權限：目前登入者 ID 是否等於 專案擁有者 ID
+  // 1. 判斷權限
   const isOwner = user?.id === project.user_id;
 
   useEffect(() => {
@@ -121,10 +121,38 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMenu]);
 
+  // ★ 2. 復原：動態產生狀態標籤的函式
+  const getStatusBadge = (status) => {
+    const currentStatus = status || 'active';
+    const config = {
+      active: { text: '進行中', color: '#4caf50', bg: 'rgba(76, 175, 80, 0.15)', border: 'rgba(76, 175, 80, 0.2)' },
+      settling: { text: '結算中', color: '#ffc107', bg: 'rgba(255, 193, 7, 0.15)', border: 'rgba(255, 193, 7, 0.2)' },
+      archived: { text: '已結束', color: '#9e9e9e', bg: 'rgba(158, 158, 158, 0.15)', border: 'rgba(158, 158, 158, 0.2)' }
+    };
+    const style = config[currentStatus] || config.active;
+
+    return (
+      <div style={{ 
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '6px 10px', 
+        borderRadius: '20px', 
+        fontSize: '12px', 
+        fontWeight: '800',
+        backgroundColor: style.bg, 
+        color: style.color,
+        border: `1px solid ${style.border}`,
+        whiteSpace: 'nowrap' // 確保標籤內文字不換行
+      }}>
+        {style.text}
+      </div>
+    );
+  };
+
   return (
     <div className="band-card" onClick={() => onClick(project)} style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '24px', marginBottom: '16px' }}>
       
-      {/* ★ 4. 只有 Owner 才顯示右上角操作選單 */}
+      {/* 只有 Owner 才顯示操作選單 */}
       {isOwner && (
         <button 
           style={{ position: 'absolute', top: '12px', right: '8px', background: 'none', border: 'none', padding: '8px', cursor: 'pointer', zIndex: 10 }}
@@ -134,7 +162,7 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
         </button>
       )}
 
-      {/* 絕對定位懸浮選單 */}
+      {/* 懸浮選單 */}
       {showMenu && isOwner && (
         <div 
           ref={menuRef}
@@ -155,17 +183,36 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+      {/* ★ 關鍵修改 1：父容器加入 minWidth: 0
+        這是 Flexbox 的重要設定，讓內部的文字截斷 (ellipsis) 能夠生效，不會把容器撐開
+      */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text-sub)', fontSize: '13px', fontWeight: '600' }}>
           <Calendar size={14} />
           <span>{formattedDate}</span>
         </div>
 
-        <h3 style={{ fontSize: '22px', fontWeight: '900', color: '#fff', margin: '4px 0', paddingRight: '24px' }}>
+        {/* ★ 關鍵修改 2：標題樣式調整
+          - whiteSpace: 'nowrap' (不換行)
+          - overflow: 'hidden' (超出隱藏)
+          - textOverflow: 'ellipsis' (顯示點點點)
+        */}
+        <h3 
+          style={{ 
+            fontSize: '22px', 
+            fontWeight: '900', 
+            color: '#fff', 
+            margin: '4px 0', 
+            paddingRight: '24px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}
+          title={project.name}
+        >
           {project.name || '未命名專案'}
         </h3>
         
-        {/* 成員頭像 */}
         <div style={{ display: 'flex', marginTop: '12px' }}>
           {members.slice(0, 5).map((m, i) => (
             <div key={m?.id || i} style={{ 
@@ -187,9 +234,10 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {/* 卡片右側膠囊群組 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '8px' }}>
         
-        {/* ★ 5. 新增：擁有者/協作者 膠囊 */}
+        {/* A. 身份膠囊 */}
         <div style={{ 
           display: 'inline-flex',
           alignItems: 'center',
@@ -198,36 +246,23 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
           borderRadius: '20px', 
           fontSize: '12px', 
           fontWeight: '800',
-          // 擁有者用主色混色，協作者用藍色混色
           backgroundColor: isOwner 
             ? 'color-mix(in srgb, var(--color-primary), transparent 85%)' 
-            : 'rgba(56, 189, 248, 0.15)', // Light Blue transparent
+            : 'rgba(56, 189, 248, 0.15)',
           color: isOwner 
             ? 'var(--color-primary)' 
-            : '#38bdf8', // Sky Blue
+            : '#38bdf8',
           border: isOwner 
             ? '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)'
-            : '1px solid rgba(56, 189, 248, 0.2)'
+            : '1px solid rgba(56, 189, 248, 0.2)',
+          whiteSpace: 'nowrap'
         }}>
-          {/* 加入小圖示增加識別度 */}
           {isOwner ? <Crown size={12} strokeWidth={3} /> : <User size={12} strokeWidth={3} />}
           {isOwner ? '擁有者' : '協作者'}
         </div>
 
-        {/* 狀態膠囊 (進行中) */}
-        <div style={{ 
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '6px 10px', 
-          borderRadius: '20px', 
-          fontSize: '12px', 
-          fontWeight: '800',
-          backgroundColor: '#222', 
-          color: '#888',
-          border: '1px solid #333'
-        }}>
-          進行中
-        </div>
+        {/* B. 狀態膠囊 (動態渲染) */}
+        {getStatusBadge(project.status)}
         
         <ChevronRight size={20} color="#333" strokeWidth={3} />
       </div>
