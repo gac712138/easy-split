@@ -9,6 +9,7 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import SettingsView from './views/SettingsView'; 
 import ProjectDetailView from './views/ProjectDetailView';
+import SecuritySettingsView from './views/SecuritySettingsView'; 
 
 // 彈窗組件
 import CreateProjectModal from './components/CreateProjectModal';
@@ -16,7 +17,7 @@ import EditProjectModal from './components/EditProjectModal';
 import AddTransactionModal from './components/AddTransactionModal'; 
 import ConfirmModal from './components/ConfirmModal';
 import JoinProjectModal from './components/JoinProjectModal'; 
-import SetupProfileModal from './components/SetupProfileModal'; // ★ 新增
+import SetupProfileModal from './components/SetupProfileModal'; 
 
 // 動畫組件
 import LoadingScreen from './components/LoadingScreen';
@@ -41,12 +42,12 @@ function App() {
   const [editingTransaction, setEditingTransaction] = useState(null); 
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [targetJoinProject, setTargetJoinProject] = useState(null); 
-  
-  // ★ 新增：設定資料彈窗
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
 
+  // 用於強制觸發某些子元件更新的訊號
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  /* --- 3. 核心資料抓取 (★ 關鍵修正處) --- */
   const refreshGlobalData = useCallback(async (userId) => {
     if (!userId) return;
     setIsDataLoading(true);
@@ -55,15 +56,41 @@ function App() {
         supabase.from('projects').select('*').order('created_at', { ascending: false }),
         supabase.from('personnel').select('*')
       ]);
-      if (projRes.data) setProjects(projRes.data);
+
+      if (projRes.data) {
+        setProjects(projRes.data);
+
+        // ★★★ 關鍵修復：同步更新 selectedProject ★★★
+        // 如果當前使用者正停留在某個專案頁面，我們必須用「最新的資料」去更新它
+        // 否則 ProjectDetailView 裡的 project.status 永遠是舊的，畫面就不會變
+        setSelectedProject(current => {
+          if (!current) return null;
+          // 在新抓回來的列表中，找到同一個 ID 的專案
+          const freshProject = projRes.data.find(p => p.id === current.id);
+          // 如果找到了，就用新的取代舊的；沒找到(可能被刪了)就維持原樣或設為 null
+          return freshProject || current;
+        });
+      }
+
       if (persRes.data) setPersonnel(persRes.data);
-    } catch (err) { console.error(err); } 
-    finally { setIsDataLoading(false); }
+      
+      // 觸發子元件(如 ProjectDetailView) 內部 useEffect 的依賴更新
+      setRefreshTrigger(prev => prev + 1);
+
+    } catch (err) {
+      console.error(err);
+      message.error("資料同步失敗");
+    } finally {
+      setIsDataLoading(false);
+    }
   }, []);
 
+  /* --- 4. 邀請連結攔截 --- */
   const processInviteCode = async (code) => {
     const { data: project, error } = await supabase.rpc('get_project_by_invite_code', { code_input: code }).single();
     if (error || !project) {
+        console.error('Invite check failed:', error);
+        message.error('邀請連結無效或專案不存在');
         localStorage.removeItem('pending_invite_code'); 
         window.history.replaceState({}, document.title, window.location.pathname);
         return;
@@ -75,6 +102,7 @@ function App() {
     setTargetJoinProject(project); setIsJoinModalOpen(true);
   };
 
+  /* --- 5. 初始化 --- */
   useEffect(() => {
     if (!user) {
       const root = document.documentElement.style;
@@ -82,13 +110,11 @@ function App() {
       return;
     }
 
-    // 重置 UI
     setIsMenuOpen(false);       
     setCurrentView('projects'); 
     setSelectedProject(null);   
 
-    // ★ 檢查是否為新用戶 (有登入但沒名字)
-    if (!user.user_metadata?.name) {
+    if (user && !user.user_metadata?.name) {
       setIsSetupModalOpen(true);
     }
 
@@ -158,7 +184,6 @@ function App() {
       <JoinProjectModal isOpen={isJoinModalOpen} onClose={() => setIsJoinModalOpen(false)} project={targetJoinProject} user={user} onSuccess={(project) => { refreshGlobalData(user.id); setSelectedProject(project); }} />
       <ConfirmModal open={isLogoutConfirmOpen} title="確認登出系統？" content="登出後需重新登入才能繼續管理。" onConfirm={async () => { await signOut(); setIsLogoutConfirmOpen(false); }} onCancel={() => setIsLogoutConfirmOpen(false)} />
 
-      {/* ★ 這裡插入設定資料彈窗 */}
       <SetupProfileModal isOpen={isSetupModalOpen} user={user} onComplete={() => setIsSetupModalOpen(false)} />
     </div>
   );
