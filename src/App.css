@@ -222,3 +222,5 @@ body {
   transition: transform 0.2s;
 }
 .navbar-add-btn:active { transform: scale(0.9); }
+
+
