@@ -1,108 +1,143 @@
-import React, { useState, useEffect } from 'react';
-import { X, Layout, Users, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, FolderPlus } from 'lucide-react'; // 使用 FolderPlus 圖示
 import { supabase } from '../lib/supabaseClient';
 import { message } from 'antd';
-import MemberSelect from './MemberSelect';
 
-const CreateProjectModal = ({ isOpen, onClose, user, personnel = [], onRefresh }) => {
+const CreateProjectModal = ({ isOpen, onClose, user, onRefresh }) => {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ name: '', description: '' });
-  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
-  const [internalUser, setInternalUser] = useState(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      const u = user?.id ? user : user?.user;
-      if (u) setInternalUser(u);
-    }
-  }, [isOpen, user]);
-
-  const personnelOptions = (personnel || []).map(p => ({ label: p.name, value: p.id }));
+  const [projectName, setProjectName] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!internalUser?.id || loading) return;
+    if (!projectName.trim() || loading) return;
+
     setLoading(true);
     try {
-      const { data: project, error: pError } = await supabase.from('projects').insert([{ 
-        name: formData.name.trim(), description: formData.description.trim(), user_id: internalUser.id 
-      }]).select().single();
-      if (pError) throw pError;
+      // 1. 建立專案
+      const { data: project, error: projError } = await supabase
+        .from('projects')
+        .insert([
+          { 
+            name: projectName.trim(),
+            user_id: user.id // 擁有者
+          }
+        ])
+        .select()
+        .single();
 
-      if (selectedMemberIds.length > 0) {
-        const payload = selectedMemberIds.map(mid => ({ 
-          project_id: project.id, personnel_id: mid, user_id: internalUser.id 
-        }));
-        await supabase.from('project_members').insert(payload);
-      }
-      message.success('專案建立成功');
-      setFormData({ name: '', description: '' }); setSelectedMemberIds([]);
-      onClose(); if (onRefresh) onRefresh();
-    } catch (err) { message.error(err.message); } finally { setLoading(false); }
+      if (projError) throw projError;
+
+      // 2. 將自己加入成員名單 (Role: Owner)
+      const { error: memberError } = await supabase
+        .from('project_members')
+        .insert([
+          {
+            project_id: project.id,
+            user_id: user.id,
+            role: 'owner'
+          }
+        ]);
+
+      if (memberError) throw memberError;
+
+      // 3. 在人員名單建立自己 (並完成綁定)
+      // 優先使用 Google 登入的名字，如果沒有就用 Email 前綴
+      const myName = user.user_metadata?.name || user.email?.split('@')[0] || '我';
+      
+      const { error: persError } = await supabase
+        .from('personnel')
+        .insert([
+          {
+            project_id: project.id,
+            name: myName,
+            linked_user_id: user.id, // ★ 關鍵：直接綁定
+            sort_order: 0
+          }
+        ]);
+
+      if (persError) throw persError;
+
+      message.success('專案建立成功！');
+      setProjectName('');
+      onClose();
+      onRefresh(); // 刷新 Dashboard
+
+    } catch (err) {
+      console.error(err);
+      message.error('建立失敗：' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
 
   return (
-    // 調用地基 .drawer-overlay 與 .active
     <div className={`drawer-overlay ${isOpen ? 'active' : ''}`} onClick={onClose}>
-      
-      {/* 調用地基 .drawer-container */}
-      <div className="drawer-container" onClick={(e) => e.stopPropagation()} style={{ padding: '24px' }}>
-        
-        {/* 檔案補足：抽屜把手 */}
-        <div style={{ width: '40px', height: '5px', background: '#333', borderRadius: '10px', margin: '0 auto 24px' }} />
-        
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-          <h3 style={{ fontSize: '22px', fontWeight: '900', color: '#fff' }}>建立新分帳專案</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}>
-            <X size={24}/>
-          </button>
+      <div 
+        className="drawer-container" 
+        onClick={(e) => e.stopPropagation()} 
+        style={{ padding: '32px 24px', maxWidth: '400px', margin: 'auto', borderRadius: '24px', height: 'auto' }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div style={{ 
+            width: '64px', height: '64px', 
+            background: 'rgba(58, 143, 183, 0.1)', 
+            borderRadius: '20px', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            margin: '0 auto 16px',
+            color: 'var(--color-primary)'
+          }}>
+            <FolderPlus size={32} />
+          </div>
+          <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#fff' }}>建立新專案</h2>
+          <p style={{ color: '#888', fontSize: '14px' }}>
+            開始一個新的旅程或活動
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {/* 補足細節：專案名稱 */}
-          <div style={{ marginBottom: '24px' }}>
-            <SectionLabel icon={<Layout size={18}/>} text="專案名稱" />
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <label style={{ color: '#888', fontSize: '13px', paddingLeft: '4px', marginBottom: '8px', display: 'block', fontWeight: '600' }}>
+              專案名稱
+            </label>
             <input 
-              type="text" className="band-input-pill" placeholder="例如：虎小島一月分帳" 
-              value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} 
-              style={{ width: '100%' }} required 
+              type="text" 
+              placeholder="例如：日本旅遊、EP製作..." 
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              className="band-input-pill"
+              style={{ width: '100%', fontSize: '16px', fontWeight: '500' }}
+              autoFocus
+              required
             />
           </div>
 
-          {/* 補足細節：人員選擇 */}
-          <div style={{ marginBottom: '24px' }}>
-            <SectionLabel icon={<Users size={18}/>} text="選擇專案人員" />
-            <MemberSelect options={personnelOptions} value={selectedMemberIds} onChange={setSelectedMemberIds} />
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              type="button" 
+              onClick={onClose}
+              style={{ 
+                flex: 1, padding: '16px', borderRadius: '16px', 
+                background: 'transparent', border: '1px solid #333', 
+                color: '#888', fontWeight: '700', cursor: 'pointer' 
+              }}
+            >
+              取消
+            </button>
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="band-btn-main"
+              style={{ flex: 2 }}
+            >
+              {loading ? '建立中...' : '確認建立'}
+            </button>
           </div>
-
-          {/* 補足細節：備註 */}
-          <div style={{ marginBottom: '32px' }}>
-            <SectionLabel icon={<FileText size={18}/>} text="備註 (選填)" />
-            <textarea 
-              className="band-input-pill" 
-              style={{ height: '100px', borderRadius: '20px', paddingTop: '15px', resize: 'none', width: '100%' }}
-              value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})}
-            />
-          </div>
-
-          {/* 調用地基 .band-btn-main */}
-          <button type="submit" className="band-btn-main" style={{ width: '100%' }} disabled={loading}>
-            {loading ? '正在建立...' : '確認建立專案'}
-          </button>
         </form>
       </div>
     </div>
   );
 };
-
-// 檔案內補足：帶 Icon 的標籤
-const SectionLabel = ({ icon, text }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-    <span style={{ color: 'var(--color-primary)' }}>{icon}</span>
-    <span style={{ fontSize: '15px', fontWeight: '800', color: '#fff' }}>{text}</span>
-  </div>
-);
 
 export default CreateProjectModal;

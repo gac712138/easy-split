@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, DollarSign, FileText, User, Users, Check, ChevronDown, Tag as TagIcon, Trash2 } from 'lucide-react'; // ★ 改用 FileText
+import { X, FileText, User, Users, Check, ChevronDown, Tag as TagIcon, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { message } from 'antd';
 import dayjs from 'dayjs';
@@ -19,18 +19,29 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
     debtor_id: null, participants: [], description: ''
   });
 
+  // ★ 1. 過濾出屬於本專案的人員
+  const projectPersonnel = personnel.filter(p => p.project_id === project?.id);
+
   // 初始化資料
   useEffect(() => {
-    if (isOpen) {
-      supabase.from('categories').select('*').order('name').then(({ data }) => {
-        if (data?.length > 0) {
-          setCategories(data);
-          if (!transaction) {
-             setFormData(prev => prev.category_id ? prev : ({ ...prev, category_id: data[0].id }));
+    if (isOpen && project) {
+      
+      // ★ 2. 讀取「專案擁有者」的分類 (確保大家分類一致)
+      supabase.from('categories')
+        .select('*')
+        .eq('user_id', project.user_id) // 改用 project owner
+        .order('name')
+        .then(({ data }) => {
+          if (data?.length > 0) {
+            setCategories(data);
+            // 如果是新增模式且還沒選分類，預設選第一個
+            if (!transaction) {
+               setFormData(prev => prev.category_id ? prev : ({ ...prev, category_id: data[0].id }));
+            }
           }
-        }
-      });
+        });
 
+      // 初始化表單
       if (transaction) {
         setFormData({
           title: transaction.title,
@@ -40,32 +51,40 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
           date: transaction.date,
           payer_id: transaction.payer_id,
           debtor_id: transaction.debtor_id,
+          // 讀取參與者 ID 列表
           participants: transaction.transaction_participants 
             ? transaction.transaction_participants.map(tp => tp.personnel_id) 
             : [], 
           description: transaction.description || ''
         });
-      } else if (project) {
-        const memberIds = project.project_members?.map(pm => pm.personnel?.id).filter(Boolean) || [];
-        const myId = personnel?.find(p => p.name === '安志')?.id || memberIds[0];
-        
+      } else {
+        // 新增模式：預設選取自己當付款人
+        const myPersonnel = projectPersonnel.find(p => p.linked_user_id === user.id);
+        const defaultPayerId = myPersonnel ? myPersonnel.id : (projectPersonnel[0]?.id || null);
+        const allMemberIds = projectPersonnel.map(p => p.id); // 預設全員分擔
+
         setFormData({
           title: '', amount: '', type: 'advance', category_id: null,
-          date: dayjs().format('YYYY-MM-DD'), payer_id: myId,
-          debtor_id: null, participants: memberIds, description: ''
+          date: dayjs().format('YYYY-MM-DD'), 
+          payer_id: defaultPayerId,
+          debtor_id: null, 
+          participants: allMemberIds, 
+          description: ''
         });
       }
     }
-  }, [isOpen, project, personnel, transaction]);
+  }, [isOpen, project, personnel, transaction, user.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading || !formData.amount || !formData.payer_id) return;
     setLoading(true);
 
+    // 準備寫入 transactions 表的資料
     const payload = {
       project_id: project.id, 
-      user_id: user.id, 
+      user_id: user.id, // 建立這筆交易的操作者 (Audit用)
+      created_by: user.id, // 新增欄位 (如果資料庫有開)
       title: formData.title.trim() || '未命名項目',
       amount: parseFloat(formData.amount), 
       type: formData.type, 
@@ -82,6 +101,7 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
         const { error } = await supabase.from('transactions').update(payload).eq('id', transaction.id);
         if (error) throw error;
         txId = transaction.id;
+        // 刪除舊的參與者關聯，稍後重建
         await supabase.from('transaction_participants').delete().eq('transaction_id', txId);
       } else {
         const { data, error } = await supabase.from('transactions').insert([payload]).select().single();
@@ -89,9 +109,12 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
         txId = data.id;
       }
 
+      // 處理「墊付」模式下的參與者 (寫入 transaction_participants)
       if (formData.type === 'advance' && formData.participants.length > 0) {
         const participantsPayload = formData.participants.map(pid => ({ 
-          transaction_id: txId, personnel_id: pid, user_id: user.id 
+          transaction_id: txId, 
+          personnel_id: pid, 
+          user_id: user.id // 這裡填入建立者ID即可，僅供紀錄
         }));
         const { error: pError } = await supabase.from('transaction_participants').insert(participantsPayload);
         if (pError) throw pError;
@@ -126,7 +149,13 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
   if (!isOpen) return null;
 
   const getCategoryName = (id) => categories.find(c => c.id === id)?.name || '請選擇類型';
-  const getPersonnelName = (id) => personnel?.find(p => p.id === id)?.name || '未選擇';
+  
+  // 顯示名稱 (加上 "你")
+  const getPersonnelName = (id) => {
+    const p = projectPersonnel?.find(p => p.id === id);
+    if (!p) return '未選擇';
+    return p.linked_user_id === user.id ? `${p.name} (你)` : p.name;
+  };
 
   return (
     <>
@@ -164,11 +193,9 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
               />
             </div>
 
-            {/* ★ 優化後的標題與日期列 */}
+            {/* 標題與日期 */}
             <div style={{ display: 'flex', gap: '12px' }}>
-              {/* 1. 標題：佔據剩餘空間 (flex: 1) */}
               <div className="band-input-pill" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {/* 換掉醜醜的 Type icon，改用 FileText */}
                 <FileText size={18} color="#666" />
                 <input 
                   type="text" placeholder="標題" value={formData.title} 
@@ -177,16 +204,14 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
                 />
               </div>
 
-              {/* 2. 日期：固定寬度 150px，確保能完整顯示而不擁擠 */}
               <div style={{ width: '150px' }}>
                 <ResponsiveDatePicker 
                   value={dayjs(formData.date)} 
                   onChange={(val) => setFormData({...formData, date: val.format('YYYY-MM-DD')})}
                   style={{ 
-                    // 讓 DatePicker 的外觀跟 band-input-pill 完全一致
                     backgroundColor: '#222', 
                     border: '1px solid var(--color-border)',
-                    borderRadius: '50px', // 跟 Pill 一樣的圓角
+                    borderRadius: '50px', 
                     height: '50px',
                     color: '#fff'
                   }}
@@ -194,6 +219,7 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
               </div>
             </div>
 
+            {/* 類型切換 (墊付/欠款) */}
             <div style={{ 
               position: 'relative', width: '100%', background: '#111', borderRadius: '14px', 
               padding: '4px', display: 'flex', height: '54px', overflow: 'hidden'
@@ -208,6 +234,8 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              
+              {/* 分類選擇 */}
               <SelectionLayer label="類型" value={getCategoryName(formData.category_id)} icon={<TagIcon size={14}/>} isOpen={activeMenu === 'cat'} onClick={() => setActiveMenu(activeMenu === 'cat' ? null : 'cat')}>
                 {categories.map(c => (
                   <div key={c.id} className={`selection-item ${formData.category_id === c.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, category_id: c.id}); setActiveMenu(null); }}>
@@ -216,16 +244,18 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
                 ))}
               </SelectionLayer>
 
+              {/* 付款人選擇 */}
               <SelectionLayer label="付款人" value={getPersonnelName(formData.payer_id)} icon={<User size={14}/>} isOpen={activeMenu === 'payer'} onClick={() => setActiveMenu(activeMenu === 'payer' ? null : 'payer')}>
-                {personnel?.map(p => (
+                {projectPersonnel?.map(p => (
                   <div key={p.id} className={`selection-item ${formData.payer_id === p.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, payer_id: p.id}); setActiveMenu(null); }}>
-                    {p.name} {formData.payer_id === p.id && <Check size={16} />}
+                    {p.name} {p.linked_user_id === user.id && '(你)'} {formData.payer_id === p.id && <Check size={16} />}
                   </div>
                 ))}
               </SelectionLayer>
 
+              {/* 參與人/欠款人選擇 */}
               <SelectionLayer label={formData.type === 'advance' ? "參與分擔" : "欠款人"} value={formData.type === 'advance' ? `${formData.participants.length} 人參與` : getPersonnelName(formData.debtor_id)} icon={<Users size={14}/>} isOpen={activeMenu === 'part'} onClick={() => setActiveMenu(activeMenu === 'part' ? null : 'part')}>
-                {personnel?.map(p => {
+                {projectPersonnel?.map(p => {
                   const isChecked = formData.type === 'advance' ? formData.participants.includes(p.id) : formData.debtor_id === p.id;
                   return (
                     <div key={p.id} className={`selection-item ${isChecked ? 'active' : ''}`} onClick={() => {
@@ -236,7 +266,7 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
                         setFormData({...formData, participants: next});
                       }
                     }}>
-                      {p.name} {isChecked && <Check size={16} />}
+                      {p.name} {p.linked_user_id === user.id && '(你)'} {isChecked && <Check size={16} />}
                     </div>
                   );
                 })}
@@ -261,7 +291,7 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
   );
 };
 
-// SelectionLayer 保持不變
+// SelectionLayer (保持不變)
 const SelectionLayer = ({ label, value, icon, isOpen, onClick, children }) => {
   const [placement, setPlacement] = useState('down');
   const triggerRef = useRef(null);

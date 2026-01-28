@@ -1,13 +1,45 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, Plus, DollarSign, User, Calendar, ArrowRight, Wallet } from 'lucide-react';
+import { ChevronLeft, Plus, DollarSign, User, Calendar, Wallet, Share2, Users } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { message } from 'antd';
+import { useAuth } from '../context/AuthContext'; 
+import ProjectPersonnelModal from '../components/ProjectPersonnelModal';
 
-// ★ 1. 確保接收 personnel prop
-const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransaction, lastUpdated, personnel = [] }) => {
+const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransaction, lastUpdated, personnel = [], onRefresh }) => {
+  const { user } = useAuth(); 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
 
+  // 1. 過濾出屬於這個專案的人員
+  const projectPersonnel = useMemo(() => {
+    return personnel.filter(p => p.project_id === project.id);
+  }, [personnel, project.id]);
+
+  // 查表輔助函式
+  const getName = (id) => {
+    const found = projectPersonnel.find(p => p.id === id);
+    if (!found) return '未知成員';
+    return found.linked_user_id === user?.id ? `${found.name} (你)` : found.name;
+  };
+
+  // 邀請功能
+  const handleInvite = () => {
+    if (!project.invite_code) {
+      message.error('此專案沒有邀請碼');
+      return;
+    }
+    const inviteLink = `${window.location.origin}${window.location.pathname}?code=${project.invite_code}`;
+    
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      message.success('已複製邀請連結！傳給朋友吧');
+    }).catch(() => {
+      message.error('複製失敗，請手動複製');
+    });
+  };
+
+  // 讀取帳務
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
@@ -15,12 +47,9 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
           .from('transactions')
           .select(`
             *,
-            payer:personnel!payer_id(name),
-            debtor:personnel!debtor_id(name),  
             category:categories!category_id(name),
-            transaction_participants(
-              personnel_id,
-              personnel(name)
+            transaction_participants (
+              personnel_id
             )
           `)
           .eq('project_id', project.id)
@@ -38,138 +67,141 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     fetchTransactions();
   }, [project.id, lastUpdated]);
 
-  // ★ 2. 核心算法：加入「手動查表」邏輯 (雙重保險)
+  // 核心演算法：計算結算
   const settlements = useMemo(() => {
-    const debts = {}; 
-    
-    // 輔助函式：如果 API 沒回傳名字，就從 personnel 列表查
-    const getName = (obj, id) => {
-      if (obj && obj.name) return obj.name; // API 有抓到
-      const found = personnel.find(p => p.id === id); // 手動查表
-      return found ? found.name : '未知成員';
-    };
+    const balances = {}; 
 
+    // A. 計算淨餘額
     transactions.forEach(t => {
+      const amount = Number(t.amount);
       const payerId = t.payer_id;
-      const payerName = getName(t.payer, payerId);
 
-      if (t.type === 'advance') {
+      if (!balances[payerId]) balances[payerId] = 0;
+      balances[payerId] += amount;
+
+      if (t.type === 'debt') {
+        const debtorId = t.debtor_id;
+        if (!balances[debtorId]) balances[debtorId] = 0;
+        balances[debtorId] -= amount;
+      } 
+      else if (t.type === 'advance') {
         const participants = t.transaction_participants || [];
         if (participants.length > 0) {
-          const splitAmount = t.amount / participants.length;
+          const splitAmount = amount / participants.length;
           participants.forEach(p => {
-            if (p.personnel_id !== payerId) {
-              const debtorId = p.personnel_id;
-              // 這裡要注意：participants 的結構裡有 personnel 物件
-              const debtorName = p.personnel?.name || getName(null, debtorId);
-              
-              if (!debts[debtorId]) debts[debtorId] = { name: debtorName, owed: {} };
-              if (!debts[debtorId].owed[payerId]) debts[debtorId].owed[payerId] = { name: payerName, amount: 0 };
-              
-              debts[debtorId].owed[payerId].amount += splitAmount;
-            }
+            const pid = p.personnel_id;
+            if (!balances[pid]) balances[pid] = 0;
+            balances[pid] -= splitAmount;
           });
         }
-      } else if (t.type === 'debt') {
-        const debtorId = t.debtor_id;
-        // ★ 欠款模式下，使用查表邏輯
-        const debtorName = getName(t.debtor, debtorId); 
-
-        // 如果連 ID 都沒有，跳過
-        if (!debtorId) return; 
-
-        if (!debts[debtorId]) debts[debtorId] = { name: debtorName, owed: {} };
-        if (!debts[debtorId].owed[payerId]) debts[debtorId].owed[payerId] = { name: payerName, amount: 0 };
-        
-        debts[debtorId].owed[payerId].amount += Number(t.amount);
       }
     });
 
-    const results = [];
-    const processedPairs = new Set(); 
+    // B. 分離與排序
+    let debtors = [];
+    let creditors = [];
 
-    Object.keys(debts).forEach(debtorId => {
-      const debtorName = debts[debtorId].name;
-      const creditors = debts[debtorId].owed;
-
-      Object.keys(creditors).forEach(creditorId => {
-        const pairKey = [debtorId, creditorId].sort().join('-');
-        if (processedPairs.has(pairKey)) return;
-
-        const amountAtoB = debts[debtorId]?.owed[creditorId]?.amount || 0; 
-        const amountBtoA = debts[creditorId]?.owed[debtorId]?.amount || 0; 
-        const net = amountAtoB - amountBtoA;
-
-        // 確保雙方名字都正確
-        const creditorName = creditors[creditorId].name; 
-        const debtorNameReal = debtorName;
-        const otherPartyName = debts[creditorId]?.name || creditorName; 
-
-        if (net > 0.1) {
-          results.push({ from: debtorNameReal, to: creditorName, amount: net });
-        } else if (net < -0.1) {
-          results.push({ from: otherPartyName, to: debtorNameReal, amount: Math.abs(net) });
-        }
-        processedPairs.add(pairKey);
-      });
+    Object.entries(balances).forEach(([id, amount]) => {
+      const val = Math.round(amount * 100) / 100;
+      if (val < -0.01) debtors.push({ id, amount: val }); 
+      if (val > 0.01) creditors.push({ id, amount: val }); 
     });
 
-    return results;
-  }, [transactions, personnel]); // ★ 依賴加入 personnel
+    debtors.sort((a, b) => a.amount - b.amount); 
+    creditors.sort((a, b) => b.amount - a.amount); 
+
+    // C. 配對
+    const result = [];
+    let i = 0; 
+    let j = 0; 
+
+    while (i < debtors.length && j < creditors.length) {
+      let debtor = debtors[i];
+      let creditor = creditors[j];
+      let amount = Math.min(Math.abs(debtor.amount), creditor.amount);
+      amount = Math.round(amount * 100) / 100;
+
+      if (amount > 0) {
+        result.push({
+          from: debtor.id,
+          to: creditor.id,
+          amount: amount
+        });
+      }
+
+      debtor.amount += amount;
+      creditor.amount -= amount;
+
+      if (Math.abs(debtor.amount) < 0.01) i++;
+      if (creditor.amount < 0.01) j++;
+    }
+
+    return result;
+  }, [transactions]);
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
       
-      {/* A. 頂部導航列 */}
-      <header className="navbar" style={{ flexShrink: 0, backgroundColor: 'var(--color-bg-main)', position: 'relative', zIndex: 10, boxShadow: '0 1px 0 rgba(255,255,255,0.05)' }}>
+      {/* Header */}
+      <header className="navbar" style={{ flexShrink: 0, backgroundColor: 'var(--color-bg-main)', position: 'relative', zIndex: 10 }}>
         <button onClick={onBack} className="hamburger-btn">
           <ChevronLeft size={24} color="var(--color-text-main)"/>
         </button>
         <span className="nav-brand" style={{ fontSize: '18px', fontWeight: '800' }}>{project.name}</span>
-        <button 
-          onClick={onAddTransaction} 
-          style={{ background: 'var(--color-primary)', border: 'none', borderRadius: '12px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-        >
-          <Plus size={20} color="#fff" />
-        </button>
+        
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={handleInvite} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '12px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <Share2 size={20} color="#fff" />
+          </button>
+          <button onClick={() => setIsPersonnelModalOpen(true)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '12px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <Users size={20} color="#fff" />
+          </button>
+          <button onClick={onAddTransaction} style={{ background: 'var(--color-primary)', border: 'none', borderRadius: '12px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <Plus size={20} color="#fff" />
+          </button>
+        </div>
       </header>
 
-      {/* B. 內容區 */}
-      <main className="band-container" style={{ flex: 1, overflowY: 'auto', paddingBottom: '40px', WebkitOverflowScrolling: 'touch' }}>
+      {/* Main Content */}
+      <main className="band-container" style={{ flex: 1, overflowY: 'auto', paddingBottom: '40px' }}>
         
-        {/* 1. 結算結果卡片 */}
+        {/* Settlement Card */}
         <div className="band-card" style={{ background: 'linear-gradient(135deg, #1e1e1e 0%, #141414 100%)', padding: '24px 20px', marginBottom: '32px', border: '1px solid #333' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', borderBottom: '1px solid #333', paddingBottom: '12px' }}>
-            <Wallet size={20} color="var(--color-primary)" />
-            <span style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>目前分帳結算</span>
-          </div>
-          {settlements.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {settlements.map((item, index) => (
-                <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ccc', fontSize: '15px', fontWeight: '500' }}>
-                    <span style={{ color: '#fff', fontWeight: '700' }}>{item.from}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#666', fontSize: '12px' }}>給<ArrowRight size={14} /></div>
-                    <span style={{ color: 'var(--color-primary)', fontWeight: '700' }}>{item.to}</span>
-                  </div>
-                  <div style={{ fontSize: '18px', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>${Math.round(item.amount).toLocaleString()}</div>
-                </div>
-              ))}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid #333', paddingBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Wallet size={20} color="var(--color-primary)" />
+              <span style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>帳務總覽</span>
             </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '10px 0', color: '#666', fontSize: '14px' }}>目前所有帳務已結清。</div>
-          )}
+            <span style={{ color: '#666', fontSize: '12px' }}>{transactions.length} 筆交易</span>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {settlements.length > 0 ? (
+              settlements.map((s, index) => (
+                <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#ccc', fontSize: '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: '700', color: '#fff' }}>{getName(s.from)}</span>
+                    <span style={{ fontSize: '12px', color: '#888' }}>需付</span>
+                    <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{getName(s.to)}</span>
+                  </div>
+                  <div style={{ fontWeight: '900', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '12px', color: '#666' }}>NT$</span>
+                    {s.amount.toLocaleString()}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', color: '#555', fontSize: '14px', padding: '10px 0' }}>
+                目前結清，沒有債務！🎉
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* 2. 紀錄標題列 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 4px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '900', color: 'var(--color-text-main)' }}>帳務紀錄</h2>
-          <span style={{ fontSize: '13px', color: 'var(--color-text-sub)', fontWeight: '600' }}>共 {transactions.length} 筆</span>
-        </div>
-
-        {/* 3. 交易清單 */}
+        {/* Transaction List */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '80px', color: 'var(--color-text-sub)' }}>讀取中...</div>
+          <div style={{ textAlign: 'center', padding: '80px', color: '#666' }}>讀取中...</div>
         ) : transactions.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {transactions.map(t => (
@@ -177,27 +209,39 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
                 key={t.id} 
                 transaction={t} 
                 onClick={() => onEditTransaction && onEditTransaction(t)} 
-                personnel={personnel} // ★ 傳遞給卡片，讓卡片也能查表
+                personnel={projectPersonnel}
+                user={user}
               />
             ))}
           </div>
         ) : (
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed #333', padding: '80px 20px', borderRadius: '24px', textAlign: 'center' }}>
-            <p style={{ color: '#555', fontSize: '15px' }}>尚無帳務紀錄</p>
+            <p style={{ color: '#555', fontSize: '15px' }}>尚無帳務，快去記一筆！</p>
           </div>
         )}
       </main>
+
+      {/* ★ 關鍵修改：傳遞 user 屬性 */}
+      <ProjectPersonnelModal 
+        isOpen={isPersonnelModalOpen}
+        onClose={() => setIsPersonnelModalOpen(false)}
+        project={project}
+        user={user} // 新增這行
+        onRefresh={onRefresh} 
+      />
     </div>
   );
 };
 
-// 交易卡片
-const TransactionCard = ({ transaction, onClick, personnel }) => {
+const TransactionCard = ({ transaction, onClick, personnel, user }) => {
   const isDebt = transaction.type === 'debt';
   const formattedDate = new Date(transaction.date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' });
   
-  // ★ 使用 personnel 查表
-  const payerName = transaction.payer?.name || personnel?.find(p => p.id === transaction.payer_id)?.name || '未知';
+  const getPayerName = () => {
+    const p = personnel?.find(p => p.id === transaction.payer_id);
+    if (!p) return '未知';
+    return p.linked_user_id === user?.id ? `${p.name} (你)` : p.name;
+  };
 
   return (
     <div 
@@ -216,7 +260,7 @@ const TransactionCard = ({ transaction, onClick, personnel }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <span style={{ fontSize: '16px', fontWeight: '800', color: '#fff' }}>{transaction.title || '未命名項目'}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-sub)', fontSize: '12px', fontWeight: '600' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><User size={12} strokeWidth={3} /><span>{payerName}</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><User size={12} strokeWidth={3} /><span>{getPayerName()}</span></div>
             <span style={{ color: '#333' }}>|</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} strokeWidth={3} /><span>{formattedDate}</span></div>
           </div>

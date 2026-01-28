@@ -2,18 +2,25 @@ import React from 'react';
 import { X, FolderKanban, LogOut, Settings } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose, user, onSignOut, currentView, onNavigate }) => {
+  
+  // ★ 注入邏輯：優先讀取設定好的暱稱，沒有才用 Email
+  const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || '使用者';
+  // ★ 注入邏輯：取名字首字當頭像
+  const avatarLabel = displayName.charAt(0).toUpperCase();
+
   return (
     <div className={`sidebar-overlay ${isOpen ? 'active' : ''}`} onClick={onClose}>
       <aside 
         className="sidebar-drawer" 
         onClick={(e) => e.stopPropagation()}
-        style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }} // 使用 100dvh 解決手機瀏覽器工具列遮擋問題
+        style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }} // 保持你的 100dvh 設定
       >
         
-        {/* A. 上方使用者區：移除底邊框以保持乾淨 */}
+        {/* A. 上方使用者區 */}
         <div style={{ padding: '48px 24px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div className="user-profile">
+              {/* 大頭貼 */}
               <div style={{ 
                 width: 56, height: 56, borderRadius: '16px', 
                 backgroundColor: 'var(--color-primary)', 
@@ -21,21 +28,28 @@ const Sidebar = ({ isOpen, onClose, user, onSignOut, currentView, onNavigate }) 
                 fontWeight: '900', fontSize: '24px', marginBottom: '16px',
                 color: '#ffffff',
                 boxShadow: '0 8px 16px rgba(58, 143, 183, 0.3)'
-              }}>島</div>
-              <div style={{ fontWeight: '900', fontSize: '20px', color: '#fff' }}>
-                {user?.email?.split('@')[0] || 'Andrew'}
+              }}>
+                {avatarLabel}
               </div>
+              
+              {/* 顯示名稱 */}
+              <div style={{ fontWeight: '900', fontSize: '20px', color: '#fff' }}>
+                {displayName}
+              </div>
+              
+              {/* Email */}
               <div style={{ color: 'var(--color-text-sub)', fontSize: '12px', fontWeight: '600' }}>
                 {user?.email}
               </div>
             </div>
+            
             <button onClick={onClose} className="hamburger-btn" style={{ marginTop: '-8px' }}>
               <X size={24} color="var(--color-text-sub)"/>
             </button>
           </div>
         </div>
 
-        {/* B. ★ 核心物理修正：彈性導航區塊 (佔據所有剩餘空間) ★ */}
+        {/* B. 彈性導航區塊 (維持原樣) */}
         <nav style={{ 
           flex: 1, 
           padding: '24px 16px', 
@@ -61,9 +75,9 @@ const Sidebar = ({ isOpen, onClose, user, onSignOut, currentView, onNavigate }) 
           </button>
         </nav>
 
-        {/* C. ★ 底部登出區域：物理性貼齊最下方 ★ */}
+        {/* C. 底部登出區域 (維持原樣) */}
         <div style={{ 
-          padding: '16px 16px 40px', // 為手機底部安全區 (Safe Area) 留白
+          padding: '16px 16px 40px', 
           borderTop: '1px solid var(--color-border)',
           backgroundColor: 'rgba(255,255,255,0.01)' 
         }}>

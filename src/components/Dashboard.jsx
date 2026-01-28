@@ -1,31 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Menu, Plus, Calendar, ChevronRight, MoreVertical, Edit2, Trash2 
+  Menu, Plus, Calendar, ChevronRight, MoreVertical, Edit2, Trash2, Crown, User 
 } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient'; // 確保路徑正確
+import { supabase } from '../lib/supabaseClient'; 
 import { message } from 'antd';
-import ConfirmModal from '../components/ConfirmModal'; // 引入確認彈窗
+import ConfirmModal from '../components/ConfirmModal'; 
 
 const Dashboard = ({ 
+  user, // ★ 1. 確保這裡有接收 user
   projects, 
   loading, 
   onOpenMenu, 
   onOpenCreate, 
   onSelectProject, 
   onEditProject, 
-  onRefresh // 刪除後刷新的回呼
+  onRefresh 
 }) => {
-  // 1. 物理狀態管理：處理刪除目標
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 2. 實作刪除功能
   const handleDelete = async () => {
     if (!deleteTarget || isDeleting) return;
     setIsDeleting(true);
 
     try {
-      // 執行 Supabase 刪除
       const { error } = await supabase
         .from('projects')
         .delete()
@@ -34,7 +32,7 @@ const Dashboard = ({
       if (error) throw error;
 
       message.success(`專案「${deleteTarget.name}」已移除`);
-      if (onRefresh) onRefresh(); // 成功後刷新清單
+      if (onRefresh) onRefresh(); 
     } catch (err) {
       message.error('刪除失敗：' + err.message);
     } finally {
@@ -45,7 +43,6 @@ const Dashboard = ({
 
   return (
     <div className="app-main-layout" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      {/* 1. 旗艦導航列：絕對置中標題 */}
       <header className="navbar" style={{ flexShrink: 0 }}>
         <button onClick={onOpenMenu} className="hamburger-btn">
           <Menu size={24} color="var(--color-text-main)"/>
@@ -54,7 +51,6 @@ const Dashboard = ({
         <div style={{ width: 44 }}></div>
       </header>
 
-      {/* 2. 內容捲動區 */}
       <main className="content-area-wrapper" style={{ flex: 1, overflowY: 'auto' }}>
         <div className="band-container" style={{ paddingTop: '24px', paddingBottom: '40px' }}>
           
@@ -78,9 +74,10 @@ const Dashboard = ({
                 <ProjectCard 
                   key={project.id} 
                   project={project} 
+                  user={user} // ★ 2. 將 user 傳遞給卡片
                   onClick={() => onSelectProject(project)} 
                   onEdit={onEditProject}
-                  onDelete={() => setDeleteTarget(project)} // 點擊刪除時設定目標
+                  onDelete={() => setDeleteTarget(project)} 
                 />
               ))}
             </div>
@@ -92,7 +89,6 @@ const Dashboard = ({
         </div>
       </main>
 
-      {/* 3. 刪除確認彈窗 */}
       <ConfirmModal 
         open={!!deleteTarget}
         title="移除專案？"
@@ -106,13 +102,16 @@ const Dashboard = ({
 };
 
 /**
- * 專案卡片 - 注入絕對定位選單邏輯
+ * 專案卡片
  */
-const ProjectCard = ({ project, onClick, onEdit, onDelete }) => {
+const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
   const members = project.project_members?.map(pm => pm.personnel) || [];
   const formattedDate = new Date(project.created_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+  // ★ 3. 判斷權限：目前登入者 ID 是否等於 專案擁有者 ID
+  const isOwner = user?.id === project.user_id;
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -125,16 +124,18 @@ const ProjectCard = ({ project, onClick, onEdit, onDelete }) => {
   return (
     <div className="band-card" onClick={() => onClick(project)} style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '24px', marginBottom: '16px' }}>
       
-      {/* 右上角操作按鈕 */}
-      <button 
-        style={{ position: 'absolute', top: '12px', right: '8px', background: 'none', border: 'none', padding: '8px', cursor: 'pointer', zIndex: 10 }}
-        onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-      >
-        <MoreVertical size={20} color={showMenu ? 'var(--color-primary)' : 'var(--color-text-sub)'} />
-      </button>
+      {/* ★ 4. 只有 Owner 才顯示右上角操作選單 */}
+      {isOwner && (
+        <button 
+          style={{ position: 'absolute', top: '12px', right: '8px', background: 'none', border: 'none', padding: '8px', cursor: 'pointer', zIndex: 10 }}
+          onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+        >
+          <MoreVertical size={20} color={showMenu ? 'var(--color-primary)' : 'var(--color-text-sub)'} />
+        </button>
+      )}
 
       {/* 絕對定位懸浮選單 */}
-      {showMenu && (
+      {showMenu && isOwner && (
         <div 
           ref={menuRef}
           className="absolute-floating-menu" 
@@ -164,7 +165,7 @@ const ProjectCard = ({ project, onClick, onEdit, onDelete }) => {
           {project.name || '未命名專案'}
         </h3>
         
-        {/* 成員頭像疊加 */}
+        {/* 成員頭像 */}
         <div style={{ display: 'flex', marginTop: '12px' }}>
           {members.slice(0, 5).map((m, i) => (
             <div key={m?.id || i} style={{ 
@@ -186,10 +187,48 @@ const ProjectCard = ({ project, onClick, onEdit, onDelete }) => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <div style={{ background: 'rgba(58, 143, 183, 0.15)', color: 'var(--color-primary)', padding: '6px 14px', borderRadius: '50px', fontSize: '12px', fontWeight: '900' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        
+        {/* ★ 5. 新增：擁有者/協作者 膠囊 */}
+        <div style={{ 
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '6px 10px', 
+          borderRadius: '20px', 
+          fontSize: '12px', 
+          fontWeight: '800',
+          // 擁有者用主色混色，協作者用藍色混色
+          backgroundColor: isOwner 
+            ? 'color-mix(in srgb, var(--color-primary), transparent 85%)' 
+            : 'rgba(56, 189, 248, 0.15)', // Light Blue transparent
+          color: isOwner 
+            ? 'var(--color-primary)' 
+            : '#38bdf8', // Sky Blue
+          border: isOwner 
+            ? '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)'
+            : '1px solid rgba(56, 189, 248, 0.2)'
+        }}>
+          {/* 加入小圖示增加識別度 */}
+          {isOwner ? <Crown size={12} strokeWidth={3} /> : <User size={12} strokeWidth={3} />}
+          {isOwner ? '擁有者' : '協作者'}
+        </div>
+
+        {/* 狀態膠囊 (進行中) */}
+        <div style={{ 
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '6px 10px', 
+          borderRadius: '20px', 
+          fontSize: '12px', 
+          fontWeight: '800',
+          backgroundColor: '#222', 
+          color: '#888',
+          border: '1px solid #333'
+        }}>
           進行中
         </div>
+        
         <ChevronRight size={20} color="#333" strokeWidth={3} />
       </div>
     </div>
