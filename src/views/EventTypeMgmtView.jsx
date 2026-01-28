@@ -8,7 +8,8 @@ import { CSS } from '@dnd-kit/utilities';
 import ConfirmModal from '../components/ConfirmModal';
 
 /**
- * 1. 列表項目：調用地基 .band-card 樣式
+ * 1. 列表項目：物理優化版
+ * 修正點：釋放卡片捲動權限，僅鎖定手把拖曳
  */
 const SortableTypeItem = ({ item, onEdit, onDelete }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
@@ -31,18 +32,26 @@ const SortableTypeItem = ({ item, onEdit, onDelete }) => {
         alignItems: 'center', 
         padding: '16px 20px', 
         marginBottom: '12px',
-        touchAction: 'none' 
+        // ★ 關鍵修正：這裡移除了 touchAction: 'none'
       }}
     >
+       {/* 拖曳手把區 */}
        <div 
          {...attributes} {...listeners} 
-         style={{ cursor: 'grab', padding: '8px 12px 8px 0', display: 'flex', alignItems: 'center' }}
+         style={{ 
+            cursor: 'grab', 
+            padding: '8px 12px 8px 0', 
+            display: 'flex', 
+            alignItems: 'center',
+            // ★ 關鍵修正：將 touchAction 加在這裡
+            touchAction: 'none' 
+         }}
        >
           <GripVertical size={18} color="var(--color-text-sub)" />
        </div>
        
        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* 類別色彩圓點：垂直置中對齊 */}
+          {/* 類別色彩圓點 */}
           <div style={{ 
             width: '16px', height: '16px', borderRadius: '50%', 
             backgroundColor: item.primary_color || 'var(--color-primary)', 
@@ -71,6 +80,7 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
   const [formData, setFormData] = useState({ name: '', primary_color: '#3a8fb7' });
   const [loading, setLoading] = useState(false);
 
+  // 感測器設定
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }));
 
   const fetchTypes = async () => {

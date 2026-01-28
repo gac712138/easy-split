@@ -8,7 +8,8 @@ import { CSS } from '@dnd-kit/utilities';
 import ConfirmModal from '../components/ConfirmModal';
 
 /**
- * 1. 列表項目：調用地基 .band-card 樣式
+ * 1. 列表項目：物理優化版
+ * 修正點：將 touchAction: 'none' 移至手把，釋放卡片本身的捲動權限
  */
 const SortablePersonItem = ({ item, onEdit, onDelete }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
@@ -31,12 +32,20 @@ const SortablePersonItem = ({ item, onEdit, onDelete }) => {
         alignItems: 'center', 
         padding: '16px 20px', 
         marginBottom: '12px',
-        touchAction: 'none' // 防止手機拖拽與捲軸衝突
+        // ★ 關鍵修正：這裡移除了 touchAction: 'none'，讓卡片本體可以滑動
       }}
     >
+       {/* 拖曳手把區 */}
        <div 
          {...attributes} {...listeners} 
-         style={{ cursor: 'grab', padding: '8px 12px 8px 0', display: 'flex', alignItems: 'center' }}
+         style={{ 
+            cursor: 'grab', 
+            padding: '8px 12px 8px 0', 
+            display: 'flex', 
+            alignItems: 'center',
+            // ★ 關鍵修正：將 touchAction 加在這裡，只有按住手把時才禁止捲動
+            touchAction: 'none' 
+         }}
        >
           <GripVertical size={18} color="var(--color-text-sub)" />
        </div>
@@ -64,6 +73,7 @@ const PersonnelView = ({ user, onBack }) => {
   const [formData, setFormData] = useState({ name: '', role: '' });
   const [loading, setLoading] = useState(false);
 
+  // 感測器設定：保留 activationConstraint，防止點擊誤觸發拖曳
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }));
 
   const fetchPersonnel = async () => {
@@ -104,10 +114,9 @@ const PersonnelView = ({ user, onBack }) => {
   };
 
   return (
-    /* 關鍵：使用 flex-direction: column 確保內容不被 header 擠掉 */
     <div className="app-main-layout" style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
       
-      {/* 1. 旗艦導航列：強化物理置頂與絕對置中 */}
+      {/* 1. 旗艦導航列 */}
       <header className="navbar" style={{ flexShrink: 0, position: 'relative', width: '100%' }}>
         <button onClick={onBack} className="hamburger-btn" style={{ zIndex: 10 }}>
           <ChevronLeft size={24} color="#ffffff" />
@@ -125,7 +134,7 @@ const PersonnelView = ({ user, onBack }) => {
         </button>
       </header>
 
-      {/* 2. 內容容器：使用 flex: 1 與 overflow 解決內容不見的問題 */}
+      {/* 2. 內容容器 */}
       <div className="content-area-wrapper" style={{ flex: 1, overflowY: 'auto' }}>
         <main className="band-container" style={{ paddingTop: '24px' }}>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -146,7 +155,7 @@ const PersonnelView = ({ user, onBack }) => {
         </main>
       </div>
 
-      {/* 3. 地基抽屜彈窗 */}
+      {/* 3. 抽屜彈窗 */}
       <div className={`drawer-overlay ${isSheetOpen ? 'active' : ''}`} onClick={() => !loading && setIsSheetOpen(false)}>
         <div className="drawer-container" style={{ padding: '32px 24px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ width: '40px', height: '5px', background: '#333', borderRadius: '10px', margin: '0 auto 24px' }} />
