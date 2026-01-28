@@ -56,7 +56,14 @@ body {
 
 /* --- 4. 內容區與卡片結構 (Layout & Cards) --- */
 .app-main-layout { display: flex; width: 100vw; height: 100vh; position: relative; }
-.content-area-wrapper { flex: 1; overflow-y: auto; height: 100%; }
+
+.content-area-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* 讓手機版捲動更順暢 */
+  display: flex;
+  flex-direction: column;
+}
 
 .band-container { padding: 24px; max-width: 800px; margin: 0 auto; width: 100%; }
 
@@ -169,27 +176,32 @@ body {
 /* --- 修正：導航列物理結構 --- */
 
 .navbar {
-  height: 64px;
+height: 64px;
   display: flex;
   align-items: center;
-  justify-content: space-between; /* 確保左右按鈕分開 */
-  padding: 0 8px; /* 縮減邊距，讓按鈕更貼近邊緣 */
-
+  justify-content: space-between;
+  padding: 0 16px;
   background: var(--color-bg-main);
-  position: relative; /* 關鍵：作為標題置中的基準 */
-  z-index: 100;
+  
+  /* 1. 物理鎖定：Sticky 且移除邊框 */
+  position: sticky;
+  top: 0;
+  z-index: 5000;
+  border-bottom: none !important; /* 依照要求移除底部邊框 */
 }
 
 /* 標題絕對置中：無視左右按鈕寬度 */
 .nav-brand {
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
+ 
+  transform: translateX(-50% );
   font-size: 18px;
   font-weight: 900;
   letter-spacing: 0.05em;
   color: var(--color-text-main);
   pointer-events: none; /* 防止標題遮擋按鈕點擊 */
+  
 }
 
 /* 漢堡按鈕：徹底移除灰色背景 */
