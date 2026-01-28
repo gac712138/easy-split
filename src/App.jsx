@@ -13,6 +13,7 @@ import ProjectDetailView from './views/ProjectDetailView';
 // 彈窗組件
 import CreateProjectModal from './components/CreateProjectModal';
 import EditProjectModal from './components/EditProjectModal';
+import AddTransactionModal from './components/AddTransactionModal'; // ★ 1. 補上 Import
 import ConfirmModal from './components/ConfirmModal';
 import './App.css';
 
@@ -31,6 +32,9 @@ function App() {
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  
+  // ★ 2. 新增帳務彈窗的開關狀態
+  const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
 
   /* --- 3. 核心資料抓取：打通「點亮成員」的物理斷層 --- */
   const refreshGlobalData = useCallback(async (userId) => {
@@ -125,6 +129,8 @@ function App() {
             <ProjectDetailView 
               project={selectedProject} 
               onBack={() => setSelectedProject(null)} 
+              // ★ 3. 傳遞開啟彈窗的函式
+              onAddTransaction={() => setIsAddTransactionOpen(true)}
             />
           )
         ) : (
@@ -149,6 +155,18 @@ function App() {
         onClose={() => setEditProject(null)}
         onRefresh={() => refreshGlobalData(user.id)}
       />
+
+      {/* ★ 4. 掛載新增帳務彈窗 (只在有選擇專案時渲染) */}
+      {selectedProject && (
+        <AddTransactionModal
+          isOpen={isAddTransactionOpen}
+          onClose={() => setIsAddTransactionOpen(false)}
+          project={selectedProject}
+          personnel={personnel}
+          user={user}
+          onRefresh={() => refreshGlobalData(user.id)}
+        />
+      )}
 
       <ConfirmModal
         open={isLogoutConfirmOpen} 

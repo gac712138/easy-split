@@ -36,13 +36,17 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction }) => {
   const totalExpense = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
 
   return (
-    <>
-      {/* A. 頂部導航列 - 調用地基 .navbar */}
-      <header className="navbar">
+    /* ★ 修正 1：建立全高 Flex 容器，鎖定佈局，確保標題不亂跑 ★ */
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      
+      {/* A. 頂部導航列 - 固定部 (flexShrink: 0 確保不被壓縮) */}
+      <header className="navbar" style={{ flexShrink: 0 }}>
         <button onClick={onBack} className="hamburger-btn">
           <ChevronLeft size={24} color="var(--color-text-main)"/>
         </button>
         <span className="nav-brand" style={{ fontSize: '18px', fontWeight: '800' }}>{project.name}</span>
+        
+        {/* 新增按鈕：綁定 onAddTransaction */}
         <button 
           onClick={onAddTransaction} 
           style={{ 
@@ -59,10 +63,10 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction }) => {
         </button>
       </header>
 
-      {/* B. 內容區 - 使用地基 .band-container */}
-      <main className="band-container">
+      {/* B. 內容區 - 捲動部 (flex: 1 佔滿剩餘空間並獨立捲動) */}
+      <main className="band-container" style={{ flex: 1, overflowY: 'auto', paddingBottom: '40px' }}>
         
-        {/* 1. 專案總計卡片 - 補足視覺張力 */}
+        {/* 1. 專案總計卡片 */}
         <div className="band-card" style={{ 
           background: 'linear-gradient(135deg, #1a1a1a 0%, #111 100%)',
           padding: '32px',
@@ -113,12 +117,12 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction }) => {
           </div>
         )}
       </main>
-    </>
+    </div>
   );
 };
 
 /**
- * 交易卡片 - 調用地基 .band-card 並補足狀態細節
+ * 交易卡片 - 維持原樣
  */
 const TransactionCard = ({ transaction }) => {
   const isDebt = transaction.type === 'debt';
@@ -133,7 +137,6 @@ const TransactionCard = ({ transaction }) => {
       marginBottom: '12px'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        {/* 類別圖示背景 */}
         <div style={{ 
           width: 44, height: 44, borderRadius: '14px',
           backgroundColor: isDebt ? 'rgba(255, 107, 107, 0.1)' : 'rgba(58, 143, 183, 0.1)',
@@ -160,7 +163,6 @@ const TransactionCard = ({ transaction }) => {
         </div>
       </div>
 
-      {/* 右側金額與標籤 */}
       <div style={{ textAlign: 'right' }}>
         <div style={{ 
           fontSize: '17px', 
