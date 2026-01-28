@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Menu, Plus, Calendar, ChevronRight, MoreVertical, Edit2, Trash2, Crown, User 
+  Menu, Plus, Calendar, MoreVertical, Edit2, Trash2, Crown, User 
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient'; 
 import { message } from 'antd';
@@ -69,7 +69,7 @@ const Dashboard = ({
               正在同步樂團資料...
             </div>
           ) : projects.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {projects.map(project => (
                 <ProjectCard 
                   key={project.id} 
@@ -102,7 +102,7 @@ const Dashboard = ({
 };
 
 /**
- * 專案卡片 Component
+ * 專案卡片 Component (Layout Updated)
  */
 const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
@@ -110,7 +110,6 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
   const members = project.project_members?.map(pm => pm.personnel) || [];
   const formattedDate = new Date(project.created_at).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
-  // 1. 判斷權限
   const isOwner = user?.id === project.user_id;
 
   useEffect(() => {
@@ -121,7 +120,7 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMenu]);
 
-  // ★ 2. 復原：動態產生狀態標籤的函式
+  // 狀態標籤
   const getStatusBadge = (status) => {
     const currentStatus = status || 'active';
     const config = {
@@ -133,16 +132,9 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
 
     return (
       <div style={{ 
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '6px 10px', 
-        borderRadius: '20px', 
-        fontSize: '12px', 
-        fontWeight: '800',
-        backgroundColor: style.bg, 
-        color: style.color,
-        border: `1px solid ${style.border}`,
-        whiteSpace: 'nowrap' // 確保標籤內文字不換行
+        display: 'inline-flex', alignItems: 'center', padding: '4px 8px', borderRadius: '6px', 
+        fontSize: '11px', fontWeight: '800', whiteSpace: 'nowrap',
+        backgroundColor: style.bg, color: style.color, border: `1px solid ${style.border}`
       }}>
         {style.text}
       </div>
@@ -150,12 +142,16 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
   };
 
   return (
-    <div className="band-card" onClick={() => onClick(project)} style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '24px', marginBottom: '16px' }}>
+    <div 
+      className="band-card" 
+      onClick={() => onClick(project)} 
+      style={{ position: 'relative', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}
+    >
       
-      {/* 只有 Owner 才顯示操作選單 */}
+      {/* Menu 按鈕 (右上角絕對定位) */}
       {isOwner && (
         <button 
-          style={{ position: 'absolute', top: '12px', right: '8px', background: 'none', border: 'none', padding: '8px', cursor: 'pointer', zIndex: 10 }}
+          style={{ position: 'absolute', top: '16px', right: '12px', background: 'none', border: 'none', padding: '4px', cursor: 'pointer', zIndex: 10 }}
           onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
         >
           <MoreVertical size={20} color={showMenu ? 'var(--color-primary)' : 'var(--color-text-sub)'} />
@@ -171,101 +167,82 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="selection-item" onClick={() => { onEdit(project); setShowMenu(false); }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Edit2 size={16} /> 編輯專案
-            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Edit2 size={16} /> 編輯專案</div>
           </div>
           <div className="selection-item" style={{ color: '#ff6b6b' }} onClick={() => { onDelete(); setShowMenu(false); }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Trash2 size={16} /> 刪除專案
-            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Trash2 size={16} /> 刪除專案</div>
           </div>
         </div>
       )}
 
-      {/* ★ 關鍵修改 1：父容器加入 minWidth: 0
-        這是 Flexbox 的重要設定，讓內部的文字截斷 (ellipsis) 能夠生效，不會把容器撐開
+      {/* ★ 第一排：Badge 區塊 
+         (身分膠囊 + 狀態膠囊) 
       */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text-sub)', fontSize: '13px', fontWeight: '600' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        
+        {/* 身份膠囊 */}
+        <div style={{ 
+          display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '6px', 
+          fontSize: '11px', fontWeight: '800', whiteSpace: 'nowrap',
+          backgroundColor: isOwner ? 'color-mix(in srgb, var(--color-primary), transparent 85%)' : 'rgba(56, 189, 248, 0.15)',
+          color: isOwner ? 'var(--color-primary)' : '#38bdf8',
+          border: isOwner ? '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)' : '1px solid rgba(56, 189, 248, 0.2)'
+        }}>
+          {isOwner ? <Crown size={11} strokeWidth={3} /> : <User size={11} strokeWidth={3} />}
+          {isOwner ? '擁有者' : '協作者'}
+        </div>
+
+        {/* 狀態膠囊 (移到這裡了) */}
+        {getStatusBadge(project.status)}
+      </div>
+
+      {/* ★ 第二排：專案標題 
+         (單行省略)
+      */}
+      <h3 
+        style={{ 
+          fontSize: '20px', fontWeight: '900', color: '#fff', margin: 0,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          paddingRight: '30px' // 預留一點空間給右上角的 Menu 按鈕，避免文字蓋住
+        }}
+        title={project.name}
+      >
+        {project.name || '未命名專案'}
+      </h3>
+
+      {/* ★ 第三排：日期與成員 
+         (日期移到標題下方)
+      */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        
+        {/* 日期 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-sub)', fontSize: '13px', fontWeight: '600' }}>
           <Calendar size={14} />
           <span>{formattedDate}</span>
         </div>
 
-        {/* ★ 關鍵修改 2：標題樣式調整
-          - whiteSpace: 'nowrap' (不換行)
-          - overflow: 'hidden' (超出隱藏)
-          - textOverflow: 'ellipsis' (顯示點點點)
-        */}
-        <h3 
-          style={{ 
-            fontSize: '22px', 
-            fontWeight: '900', 
-            color: '#fff', 
-            margin: '4px 0', 
-            paddingRight: '24px',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
-          }}
-          title={project.name}
-        >
-          {project.name || '未命名專案'}
-        </h3>
-        
-        <div style={{ display: 'flex', marginTop: '12px' }}>
+        {/* 成員頭像 (跟在日期後面) */}
+        <div style={{ display: 'flex' }}>
           {members.slice(0, 5).map((m, i) => (
             <div key={m?.id || i} style={{ 
-              width: 34, height: 34, borderRadius: '12px', background: '#252525', 
-              border: '2px solid var(--color-bg-pill)', display: 'flex', alignItems: 'center', 
-              justifyContent: 'center', fontSize: '13px', fontWeight: '900', 
-              marginLeft: i === 0 ? 0 : -10,
+              width: 24, height: 24, borderRadius: '8px', background: '#252525', 
+              border: '1px solid var(--color-bg-pill)', display: 'flex', alignItems: 'center', 
+              justifyContent: 'center', fontSize: '10px', fontWeight: '900', 
+              marginLeft: i === 0 ? 0 : -6,
               color: i === 0 ? 'var(--color-primary)' : '#888',
-              boxShadow: '4px 0 10px rgba(0,0,0,0.3)'
+              boxShadow: '2px 0 5px rgba(0,0,0,0.3)'
             }}>
               {m?.name ? m.name.charAt(0) : '?'}
             </div>
           ))}
           {members.length > 5 && (
-            <div style={{ width: 34, height: 34, borderRadius: '12px', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#555', marginLeft: -10, border: '2px solid var(--color-bg-pill)', fontWeight: '900' }}>
+            <div style={{ width: 24, height: 24, borderRadius: '8px', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#555', marginLeft: -6, border: '1px solid var(--color-bg-pill)', fontWeight: '900' }}>
               +{members.length - 5}
             </div>
           )}
         </div>
       </div>
 
-      {/* 卡片右側膠囊群組 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '8px' }}>
-        
-        {/* A. 身份膠囊 */}
-        <div style={{ 
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
-          padding: '6px 10px', 
-          borderRadius: '20px', 
-          fontSize: '12px', 
-          fontWeight: '800',
-          backgroundColor: isOwner 
-            ? 'color-mix(in srgb, var(--color-primary), transparent 85%)' 
-            : 'rgba(56, 189, 248, 0.15)',
-          color: isOwner 
-            ? 'var(--color-primary)' 
-            : '#38bdf8',
-          border: isOwner 
-            ? '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)'
-            : '1px solid rgba(56, 189, 248, 0.2)',
-          whiteSpace: 'nowrap'
-        }}>
-          {isOwner ? <Crown size={12} strokeWidth={3} /> : <User size={12} strokeWidth={3} />}
-          {isOwner ? '擁有者' : '協作者'}
-        </div>
-
-        {/* B. 狀態膠囊 (動態渲染) */}
-        {getStatusBadge(project.status)}
-        
-        <ChevronRight size={20} color="#333" strokeWidth={3} />
-      </div>
     </div>
   );
 };
