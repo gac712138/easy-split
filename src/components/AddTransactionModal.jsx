@@ -1,54 +1,141 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, DollarSign, Type, User, Users, Check, ChevronDown, Tag as TagIcon } from 'lucide-react';
+import { X, DollarSign, Type, User, Users, Check, ChevronDown, Tag as TagIcon, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { message } from 'antd';
 import dayjs from 'dayjs';
-// 引入你提供的響應式日期組件
 import ResponsiveDatePicker from './ResponsiveDatePicker'; 
 
-const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, onRefresh }) => {
+// ★ 1. 新增 transaction prop 用於接收要編輯的資料
+const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, onRefresh, transaction = null }) => {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [activeMenu, setActiveMenu] = useState(null);
 
+  // 表單狀態
   const [formData, setFormData] = useState({
     title: '', amount: '', type: 'advance', category_id: null,
     date: dayjs().format('YYYY-MM-DD'), payer_id: null,
     debtor_id: null, participants: [], description: ''
   });
 
+  // ★ 2. 初始化資料：判斷是「新增」還是「編輯」
   useEffect(() => {
-    if (isOpen && project) {
+    if (isOpen) {
+      // 載入分類
       supabase.from('categories').select('*').order('name').then(({ data }) => {
         if (data?.length > 0) {
           setCategories(data);
-          setFormData(prev => ({ ...prev, category_id: data[0].id }));
+          // 只有在新增模式且尚未選擇分類時，才預設第一個
+          if (!transaction) {
+             setFormData(prev => prev.category_id ? prev : ({ ...prev, category_id: data[0].id }));
+          }
         }
       });
-      const memberIds = project.project_members?.map(pm => pm.personnel?.id).filter(Boolean) || [];
-      const myId = personnel?.find(p => p.name === '安志')?.id || memberIds[0];
-      setFormData(prev => ({ ...prev, payer_id: myId, participants: memberIds }));
+
+      if (transaction) {
+        // --- 編輯模式：填入現有資料 ---
+        setFormData({
+          title: transaction.title,
+          amount: transaction.amount,
+          type: transaction.type,
+          category_id: transaction.category_id,
+          date: transaction.date,
+          payer_id: transaction.payer_id,
+          debtor_id: transaction.debtor_id,
+          // 從關聯資料中提取參與者 ID
+          participants: transaction.transaction_participants 
+            ? transaction.transaction_participants.map(tp => tp.personnel_id) 
+            : [], 
+          description: transaction.description || ''
+        });
+      } else if (project) {
+        // --- 新增模式：帶入預設值 ---
+        const memberIds = project.project_members?.map(pm => pm.personnel?.id).filter(Boolean) || [];
+        // 嘗試抓取「安志」或第一個成員當作預設付款人
+        const myId = personnel?.find(p => p.name === '安志')?.id || memberIds[0];
+        
+        setFormData({
+          title: '', amount: '', type: 'advance', category_id: null,
+          date: dayjs().format('YYYY-MM-DD'), payer_id: myId,
+          debtor_id: null, participants: memberIds, description: ''
+        });
+      }
     }
-  }, [isOpen, project, personnel]);
+  }, [isOpen, project, personnel, transaction]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading || !formData.amount || !formData.payer_id) return;
     setLoading(true);
+
+    // 準備寫入資料庫的 payload
+    const payload = {
+      project_id: project.id, 
+      user_id: user.id, 
+      title: formData.title.trim() || '未命名項目',
+      amount: parseFloat(formData.amount), 
+      type: formData.type, 
+      category_id: formData.category_id,
+      date: formData.date, 
+      payer_id: formData.payer_id,
+      debtor_id: formData.type === 'debt' ? formData.debtor_id : null,
+    };
+
     try {
-      const { data: tx, error: tError } = await supabase.from('transactions').insert([{
-        project_id: project.id, user_id: user.id, title: formData.title.trim() || '未命名項目',
-        amount: parseFloat(formData.amount), type: formData.type, category_id: formData.category_id,
-        date: formData.date, payer_id: formData.payer_id,
-        debtor_id: formData.type === 'debt' ? formData.debtor_id : null,
-      }]).select().single();
-      if (tError) throw tError;
-      if (formData.type === 'advance') {
-        const payload = formData.participants.map(pid => ({ transaction_id: tx.id, personnel_id: pid, user_id: user.id }));
-        await supabase.from('transaction_participants').insert(payload);
+      let txId = null;
+
+      if (transaction) {
+        // --- 更新邏輯 ---
+        const { error } = await supabase.from('transactions').update(payload).eq('id', transaction.id);
+        if (error) throw error;
+        txId = transaction.id;
+
+        // 如果是編輯，先刪除舊的參與者關聯 (簡單暴力法：先刪再加)
+        await supabase.from('transaction_participants').delete().eq('transaction_id', txId);
+
+      } else {
+        // --- 新增邏輯 ---
+        const { data, error } = await supabase.from('transactions').insert([payload]).select().single();
+        if (error) throw error;
+        txId = data.id;
       }
-      message.success('記帳成功'); onClose(); onRefresh();
-    } catch (err) { message.error(err.message); } finally { setLoading(false); }
+
+      // 如果是墊付模式，寫入新的參與者
+      if (formData.type === 'advance' && formData.participants.length > 0) {
+        const participantsPayload = formData.participants.map(pid => ({ 
+          transaction_id: txId, 
+          personnel_id: pid, 
+          user_id: user.id 
+        }));
+        const { error: pError } = await supabase.from('transaction_participants').insert(participantsPayload);
+        if (pError) throw pError;
+      }
+
+      message.success(transaction ? '修改成功' : '記帳成功'); 
+      onClose(); 
+      onRefresh();
+    } catch (err) { 
+      console.error(err);
+      message.error(err.message); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
+
+  // 刪除功能
+  const handleDelete = async () => {
+    if (!window.confirm('確定要刪除這筆帳務嗎？')) return;
+    setLoading(true);
+    try {
+      await supabase.from('transactions').delete().eq('id', transaction.id);
+      message.success('已刪除');
+      onClose();
+      onRefresh();
+    } catch (err) {
+      message.error('刪除失敗');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -62,10 +149,19 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
         <div style={{ width: '40px', height: '5px', background: '#333', borderRadius: '10px', margin: '0 auto 20px' }} />
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '20px', fontWeight: '900', color: '#fff' }}>新增行程帳務</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}>
-            <X size={24}/>
-          </button>
+          <h3 style={{ fontSize: '20px', fontWeight: '900', color: '#fff' }}>
+            {transaction ? '編輯帳務' : '新增行程帳務'}
+          </h3>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            {transaction && (
+              <button onClick={handleDelete} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer' }}>
+                <Trash2 size={24}/>
+              </button>
+            )}
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}>
+              <X size={24}/>
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -158,7 +254,7 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
           </div>
 
           <button type="submit" className="band-btn-main" style={{ width: '100%' }} disabled={loading}>
-            {loading ? '正在儲存...' : '確認新增帳務'}
+            {loading ? '正在儲存...' : (transaction ? '確認修改' : '確認新增帳務')}
           </button>
         </form>
       </div>
@@ -166,6 +262,7 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
   );
 };
 
+// SelectionLayer 保持不變
 const SelectionLayer = ({ label, value, icon, isOpen, onClick, children }) => {
   const [placement, setPlacement] = useState('down');
   const triggerRef = useRef(null);

@@ -13,37 +13,41 @@ import ProjectDetailView from './views/ProjectDetailView';
 // 彈窗組件
 import CreateProjectModal from './components/CreateProjectModal';
 import EditProjectModal from './components/EditProjectModal';
-import AddTransactionModal from './components/AddTransactionModal'; // ★ 1. 補上 Import
+import AddTransactionModal from './components/AddTransactionModal'; 
 import ConfirmModal from './components/ConfirmModal';
 import './App.css';
 
 function App() {
   const { user, signOut } = useAuth();
 
-  /* --- 1. 物理狀態初始化：確保登入後視圖正確 --- */
-  const [currentView, setCurrentView] = useState('projects'); // 預設 Dashboard
-  const [isMenuOpen, setIsMenuOpen] = useState(false);        // 預設選單收合
+  /* --- 1. 物理狀態初始化 --- */
+  const [currentView, setCurrentView] = useState('projects'); 
+  const [isMenuOpen, setIsMenuOpen] = useState(false);        
   const [selectedProject, setSelectedProject] = useState(null);
   const [editProject, setEditProject] = useState(null);
 
   /* --- 2. 全域資料狀態 --- */
   const [projects, setProjects] = useState([]);
-  const [personnel, setPersonnel] = useState([]);
+  const [personnel, setPersonnel] = useState([]); // ★ 這是關鍵名單
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   
-  // ★ 2. 新增帳務彈窗的開關狀態
+  // 帳務彈窗相關狀態
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null); 
+  
+  // 刷新訊號
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  /* --- 3. 核心資料抓取：打通「點亮成員」的物理斷層 --- */
+  /* --- 3. 核心資料抓取 --- */
   const refreshGlobalData = useCallback(async (userId) => {
     if (!userId) return;
     setIsDataLoading(true);
     try {
       const [projRes, persRes] = await Promise.all([
         supabase.from('projects')
-          .select(`*, project_members(personnel_id, personnel(*))`) // ★ 關鍵：補上 personnel_id
+          .select(`*, project_members(personnel_id, personnel(*))`) 
           .eq('user_id', userId)
           .order('created_at', { ascending: false }),
         supabase.from('personnel')
@@ -64,14 +68,12 @@ function App() {
   /* --- 4. 主題配色與資料載入監聽 --- */
   useEffect(() => {
     if (!user) {
-      // 登出時清理 CSS 變數，回歸預設地基顏色
       const root = document.documentElement.style;
       ['primary', 'bg', 'card', 'text-main', 'text-sub'].forEach(p => root.removeProperty(`--color-${p}`));
       return;
     }
 
     const loadThemeAndData = async () => {
-      // A. 載入 KV 設定
       const { data } = await supabase.from('user_settings').select('key, value').eq('user_id', user.id);
       if (data) {
         data.forEach(s => {
@@ -79,14 +81,12 @@ function App() {
           document.documentElement.style.setProperty(cssVar, s.value);
         });
       }
-      // B. 載入全域資料
       refreshGlobalData(user.id);
     };
 
     loadThemeAndData();
   }, [user, refreshGlobalData]);
 
-  // 未登入狀態：導向物理隔離的 AuthView
   if (!user) return <AuthView />;
 
   return (
@@ -97,7 +97,7 @@ function App() {
         onClick={() => setIsMenuOpen(false)} 
       />
 
-      {/* 6. 側邊欄：導航後自動收合 */}
+      {/* 6. 側邊欄 */}
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={() => setIsMenuOpen(false)} 
@@ -106,12 +106,12 @@ function App() {
         onNavigate={(view) => {
           setCurrentView(view);
           setSelectedProject(null);
-          setIsMenuOpen(false); // 物理收合動作
+          setIsMenuOpen(false); 
         }} 
         onSignOut={() => setIsLogoutConfirmOpen(true)} 
       />
 
-      {/* 7. 主內容區：Flex 佈局填充 */}
+      {/* 7. 主內容區 */}
       <main className="content-area-wrapper">
         {currentView === 'projects' ? (
           !selectedProject ? (
@@ -129,8 +129,24 @@ function App() {
             <ProjectDetailView 
               project={selectedProject} 
               onBack={() => setSelectedProject(null)} 
-              // ★ 3. 傳遞開啟彈窗的函式
-              onAddTransaction={() => setIsAddTransactionOpen(true)}
+              
+              // ★★★ 關鍵修正：必須傳入 personnel，否則詳情頁無法對照名字 ★★★
+              personnel={personnel} 
+
+              // 點擊新增按鈕
+              onAddTransaction={() => {
+                setEditingTransaction(null);
+                setIsAddTransactionOpen(true);
+              }}
+              
+              // 點擊列表卡片編輯
+              onEditTransaction={(transaction) => {
+                setEditingTransaction(transaction);
+                setIsAddTransactionOpen(true);
+              }}
+
+              // 傳遞刷新訊號
+              lastUpdated={refreshTrigger}
             />
           )
         ) : (
@@ -156,7 +172,7 @@ function App() {
         onRefresh={() => refreshGlobalData(user.id)}
       />
 
-      {/* ★ 4. 掛載新增帳務彈窗 (只在有選擇專案時渲染) */}
+      {/* 掛載新增/編輯帳務彈窗 */}
       {selectedProject && (
         <AddTransactionModal
           isOpen={isAddTransactionOpen}
@@ -164,7 +180,13 @@ function App() {
           project={selectedProject}
           personnel={personnel}
           user={user}
-          onRefresh={() => refreshGlobalData(user.id)}
+          transaction={editingTransaction} 
+          
+          // 存檔成功後，更新全域資料並發送刷新訊號
+          onRefresh={() => {
+            refreshGlobalData(user.id);
+            setRefreshTrigger(prev => prev + 1);
+          }}
         />
       )}
 
