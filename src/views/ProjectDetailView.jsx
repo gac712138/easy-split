@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { message } from 'antd'; // ★ 移除 Modal 引用
+import { message } from 'antd'; 
 import { useAuth } from '../context/AuthContext'; 
 
 // Components
@@ -21,30 +21,31 @@ const PAGE_SIZE = 10;
 const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransaction, lastUpdated, personnel = [], onRefresh }) => {
   const { user } = useAuth(); 
   
-  // Data State
+  // --- Data State ---
   const [transactions, setTransactions] = useState([]);
   const [settlements, setSettlements] = useState([]); 
   
-  // UI State
+  // --- UI State ---
   const [loading, setLoading] = useState(true);
   const [isSettlementLoading, setIsSettlementLoading] = useState(false);
   
-  // 分頁相關 State
+  // 分頁相關
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-  // Modals
+  // Modals 控制
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
   const [isStartConfirmOpen, setIsStartConfirmOpen] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false); // 歸檔確認
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
   const [checkingItem, setCheckingItem] = useState(null);
-  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false); // ★ 歸檔 Modal 狀態
 
   const isOwner = user?.id === project.user_id;
 
-  // --- Helper: Get Name ---
+  // --- Helper: 人員資料處理 ---
+  // 過濾出屬於此專案的人員，並傳給 Header 判斷紅點與按鈕狀態
   const projectPersonnel = useMemo(() => {
     return personnel.filter(p => p.project_id === project.id);
   }, [personnel, project.id]);
@@ -55,7 +56,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     return found.linked_user_id === user?.id ? `${found.name} (你)` : found.name;
   };
 
-  // --- Effects: Data Fetching ---
+  // --- Data Fetching: 帳務列表 ---
   const fetchTransactions = useCallback(async (targetPage, isAppend = false) => {
     try {
       if (isAppend) setIsFetchingMore(true);
@@ -88,6 +89,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     }
   }, [project.id]);
 
+  // 當專案 ID 或外部更新觸發時，重置分頁並重新抓取
   useEffect(() => {
     setPage(0);
     setHasMore(true);
@@ -100,6 +102,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     fetchTransactions(nextPage, true);
   };
 
+  // 讀取結算清單 (僅在結算中或已歸檔狀態需要)
   useEffect(() => {
     if (project.status === 'settling' || project.status === 'archived') {
       const fetchSettlements = async () => {
@@ -117,7 +120,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     }
   }, [project.id, project.status]);
 
-  // --- Logic: Calculation ---
+  // --- Logic: 債務計算 (前端預覽用) ---
   const calculatedSettlements = useMemo(() => {
     if (project.status !== 'active' || transactions.length === 0) return [];
     
@@ -169,7 +172,10 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     return result;
   }, [transactions, project.status]);
 
-  // --- Handlers ---
+
+  // --- Handlers: 結算流程操作 ---
+
+  // 1. 開始結算
   const executeStartSettlement = async () => {
     setIsSettlementLoading(true);
     try {
@@ -190,6 +196,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     }
   };
 
+  // 2. 取消結算並退回記帳
   const executeCancelSettlement = async () => {
     setIsSettlementLoading(true);
     try {
@@ -205,7 +212,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     }
   };
 
-  // ★ 改寫後的歸檔邏輯
+  // 3. 完成結算並歸檔 (使用 ConfirmModal 替代原本報錯的 Modal.confirm)
   const handleFinishSettlement = () => {
     setIsArchiveConfirmOpen(true);
   };
@@ -219,17 +226,19 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
       setIsArchiveConfirmOpen(false);
       if (onRefresh) await onRefresh();
     } catch (err) {
-      message.error('歸檔失敗');
+      message.error('歸檔失敗：' + err.message);
     } finally {
       setIsSettlementLoading(false);
     }
   };
 
+  // 處理結算細項點擊 (勾選/取消勾選)
   const handleItemClick = async (item) => {
     if (item.is_cleared) {
       try {
         const { error } = await supabase.from('project_settlements').update({ is_cleared: false, remark: null }).eq('id', item.id);
         if (error) throw error;
+        // 重新抓取
         const { data } = await supabase.from('project_settlements').select('*').eq('project_id', project.id).order('is_cleared', { ascending: true });
         if(data) setSettlements(data);
       } catch (err) { message.error('操作失敗'); }
@@ -239,19 +248,23 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     }
   };
 
-  // --- Render ---
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
       {isSettlementLoading && <LoadingScreen transparent={true} text="處理中..." />}
 
+      {/* 1. Header (包含紅點提醒與按鈕攔截邏輯) */}
       <ProjectHeader 
         project={project}
         onBack={onBack}
         onOpenPersonnel={() => setIsPersonnelModalOpen(true)}
         onAddTransaction={onAddTransaction}
+        personnel={projectPersonnel} // 傳入成員清單以供狀態判斷
       />
 
+      {/* 2. 主內容區域 */}
       <main className="band-container" style={{ flex: 1, overflowY: 'auto', paddingBottom: '40px' }}>
+        
+        {/* A. 記帳模式：顯示債務概況卡片 */}
         {project.status === 'active' && (
           <DebtOverviewCard 
             calculatedSettlements={calculatedSettlements}
@@ -261,6 +274,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
           />
         )}
 
+        {/* B. 結算/歸檔模式：顯示結算清單 */}
         {(project.status === 'settling' || project.status === 'archived') && (
           <SettlementList 
             project={project}
@@ -273,6 +287,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
           />
         )}
 
+        {/* C. 共同：帳務歷史紀錄 */}
         <TransactionList 
           transactions={transactions}
           loading={loading}
@@ -281,6 +296,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
           getName={getName}
         />
 
+        {/* 無限捲動偵測器 */}
         {!loading && transactions.length > 0 && (
            <ScrollObserver 
              onIntersect={handleLoadMore} 
@@ -288,17 +304,21 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
              loading={isFetchingMore} 
            />
         )}
+
       </main>
 
-      {/* Modals 區域 */}
+      {/* 3. 所有彈窗 (Modals) */}
+      
+      {/* 人員管理彈窗 */}
       <ProjectPersonnelModal 
         isOpen={isPersonnelModalOpen}
         onClose={() => setIsPersonnelModalOpen(false)}
         project={project}
         user={user} 
-        onRefresh={onRefresh} 
+        onRefresh={onRefresh} // 確保新增/刪除後能刷新人員資料流
       />
 
+      {/* 開始結算確認 */}
       <ConfirmModal
         open={isStartConfirmOpen}
         title="確定開始結算？"
@@ -308,6 +328,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
         loading={isSettlementLoading}
       />
 
+      {/* 取消結算確認 */}
       <ConfirmModal
         open={isCancelConfirmOpen}
         title="取消結算並退回？"
@@ -317,7 +338,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
         loading={isSettlementLoading}
       />
 
-      {/* ★ 新增的歸檔 ConfirmModal */}
+      {/* 歸檔確認 (取代 antd Modal) */}
       <ConfirmModal
         open={isArchiveConfirmOpen}
         title="確認完成並歸檔？"
@@ -328,6 +349,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
         okText="確認歸檔"
       />
 
+      {/* 結算項目勾選彈窗 */}
       <CheckSettlementModal 
         isOpen={isCheckModalOpen}
         onClose={() => setIsCheckModalOpen(false)}

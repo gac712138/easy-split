@@ -245,16 +245,23 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
               </SelectionLayer>
 
               {/* 付款人選擇 */}
-              <SelectionLayer label="付款人" value={getPersonnelName(formData.payer_id)} icon={<User size={14}/>} isOpen={activeMenu === 'payer'} onClick={() => setActiveMenu(activeMenu === 'payer' ? null : 'payer')}>
-                {projectPersonnel?.map(p => (
-                  <div key={p.id} className={`selection-item ${formData.payer_id === p.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, payer_id: p.id}); setActiveMenu(null); }}>
-                    {p.name} {p.linked_user_id === user.id && '(你)'} {formData.payer_id === p.id && <Check size={16} />}
-                  </div>
-                ))}
-              </SelectionLayer>
+              <SelectionLayer 
+  // ★ 修改這裡：根據類型切換標籤名稱
+  label={formData.type === 'debt' ? "借款人" : "付款人"} 
+  value={getPersonnelName(formData.payer_id)} 
+  icon={<User size={14}/>} 
+  isOpen={activeMenu === 'payer'} 
+  onClick={() => setActiveMenu(activeMenu === 'payer' ? null : 'payer')}
+>
+  {projectPersonnel?.map(p => (
+    <div key={p.id} className={`selection-item ${formData.payer_id === p.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, payer_id: p.id}); setActiveMenu(null); }}>
+      {p.name} {p.linked_user_id === user.id && '(你)'} {formData.payer_id === p.id && <Check size={16} />}
+    </div>
+  ))}
+</SelectionLayer>
 
               {/* 參與人/欠款人選擇 */}
-              <SelectionLayer label={formData.type === 'advance' ? "參與分擔" : "欠款人"} value={formData.type === 'advance' ? `${formData.participants.length} 人參與` : getPersonnelName(formData.debtor_id)} icon={<Users size={14}/>} isOpen={activeMenu === 'part'} onClick={() => setActiveMenu(activeMenu === 'part' ? null : 'part')}>
+              <SelectionLayer label={formData.type === 'advance' ? "參與者" : "欠款人"} value={formData.type === 'advance' ? `${formData.participants.length} 人參與` : getPersonnelName(formData.debtor_id)} icon={<Users size={14}/>} isOpen={activeMenu === 'part'} onClick={() => setActiveMenu(activeMenu === 'part' ? null : 'part')}>
                 {projectPersonnel?.map(p => {
                   const isChecked = formData.type === 'advance' ? formData.participants.includes(p.id) : formData.debtor_id === p.id;
                   return (
