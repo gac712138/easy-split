@@ -1,9 +1,8 @@
-
 import React from 'react';
 import { ChevronLeft, Share2, Users, Plus } from 'lucide-react';
 import { message } from 'antd';
 
-const ProjectHeader = ({ project, onBack, onInvite, onOpenPersonnel, onAddTransaction }) => {
+const ProjectHeader = ({ project, onBack, onOpenPersonnel, onAddTransaction }) => {
   
   const handleCopyInvite = () => {
     if (!project.invite_code) {
@@ -17,26 +16,53 @@ const ProjectHeader = ({ project, onBack, onInvite, onOpenPersonnel, onAddTransa
   };
 
   return (
-    <header className="navbar" style={{ flexShrink: 0, backgroundColor: 'var(--color-bg-main)', position: 'relative', zIndex: 10 }}>
-      <button onClick={onBack} className="hamburger-btn">
-        <ChevronLeft size={24} color="var(--color-text-main)"/>
-      </button>
+    <header className="navbar" style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      flexShrink: 0, 
+      backgroundColor: 'var(--color-bg-main)', 
+      position: 'relative', 
+      zIndex: 10,
+      padding: '0 12px',
+      height: '60px',
+      overflow: 'hidden' /* 防止任何內容溢出 header */
+    }}>
+      {/* 左側按鈕：固定寬度 */}
+      <div style={{ flexShrink: 0 }}>
+        <button onClick={onBack} className="hamburger-btn" style={{ display: 'flex', alignItems: 'center' }}>
+          <ChevronLeft size={24} color="var(--color-text-main)"/>
+        </button>
+      </div>
       
-      <span className="nav-brand" style={{ fontSize: '18px', fontWeight: '800' }}>
-        {project.name} 
-        {project.status === 'settling' && (
-          <span style={{ fontSize: '12px', background: 'var(--color-primary)', color: '#000', padding: '2px 8px', borderRadius: '10px', marginLeft: '8px', verticalAlign: 'middle' }}>
-            結算中
-          </span>
-        )}
-        {project.status === 'archived' && (
-          <span style={{ fontSize: '12px', background: '#333', color: '#ccc', padding: '2px 8px', borderRadius: '10px', marginLeft: '8px', verticalAlign: 'middle' }}>
-            已歸檔
-          </span>
-        )}
-      </span>
+      {/* 中間標題：佔滿剩餘空間並強制截斷 */}
+      <div style={{ 
+        flex: 1, 
+        minWidth: 0, // ★ 必須設為 0，否則 flex 容器會被長文字撐開
+        padding: '0 8px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center'
+      }}>
+        <span style={{ 
+          fontSize: '18px', 
+          fontWeight: '800',
+          color: 'var(--color-text-main)',
+          whiteSpace: 'nowrap',       // ★ 強制不換行
+          overflow: 'hidden',          // ★ 溢出隱藏
+          textOverflow: 'ellipsis',    // ★ 顯示 ...
+          display: 'block'             // ★ 確保是區塊元素
+        }}>
+          {project.name} 
+        </span>
+      </div>
       
-      <div style={{ display: 'flex', gap: '8px' }}>
+      {/* 右側按鈕組：固定寬度，不准收縮 */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '8px', 
+        flexShrink: 0, 
+        alignItems: 'center' 
+      }}>
         <button onClick={handleCopyInvite} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '12px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <Share2 size={20} color="#fff" />
         </button>

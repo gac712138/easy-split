@@ -5,6 +5,7 @@ import {
 import { supabase } from '../lib/supabaseClient'; 
 import { message } from 'antd';
 import ConfirmModal from '../components/ConfirmModal'; 
+import ScrollObserver from './ScrollObserver'; // ★ 引入偵測元件
 
 const Dashboard = ({ 
   user, 
@@ -14,7 +15,11 @@ const Dashboard = ({
   onOpenCreate, 
   onSelectProject, 
   onEditProject, 
-  onRefresh 
+  onRefresh,
+  // ★ 新增分頁 Props
+  onLoadMore,
+  hasMore,
+  isFetchingMore
 }) => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -80,6 +85,13 @@ const Dashboard = ({
                   onDelete={() => setDeleteTarget(project)} 
                 />
               ))}
+
+              {/* ★ 列表最底部加入無限捲動偵測元件 */}
+              <ScrollObserver 
+                onIntersect={onLoadMore} 
+                hasMore={hasMore} 
+                loading={isFetchingMore} 
+              />
             </div>
           ) : (
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed #333', padding: '60px 20px', borderRadius: '24px', textAlign: 'center' }}>
@@ -102,7 +114,7 @@ const Dashboard = ({
 };
 
 /**
- * 專案卡片 Component (Layout Updated)
+ * 專案卡片 Component (維持你指定的最新排版)
  */
 const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
@@ -120,7 +132,6 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMenu]);
 
-  // 狀態標籤
   const getStatusBadge = (status) => {
     const currentStatus = status || 'active';
     const config = {
@@ -147,8 +158,6 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
       onClick={() => onClick(project)} 
       style={{ position: 'relative', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}
     >
-      
-      {/* Menu 按鈕 (右上角絕對定位) */}
       {isOwner && (
         <button 
           style={{ position: 'absolute', top: '16px', right: '12px', background: 'none', border: 'none', padding: '4px', cursor: 'pointer', zIndex: 10 }}
@@ -158,29 +167,15 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
         </button>
       )}
 
-      {/* 懸浮選單 */}
       {showMenu && isOwner && (
-        <div 
-          ref={menuRef}
-          className="absolute-floating-menu" 
-          style={{ width: '150px', right: '12px', top: '48px', left: 'auto' }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="selection-item" onClick={() => { onEdit(project); setShowMenu(false); }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Edit2 size={16} /> 編輯專案</div>
-          </div>
-          <div className="selection-item" style={{ color: '#ff6b6b' }} onClick={() => { onDelete(); setShowMenu(false); }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Trash2 size={16} /> 刪除專案</div>
-          </div>
+        <div ref={menuRef} className="absolute-floating-menu" style={{ width: '150px', right: '12px', top: '48px', left: 'auto' }} onClick={(e) => e.stopPropagation()}>
+          <div className="selection-item" onClick={() => { onEdit(project); setShowMenu(false); }}><div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Edit2 size={16} /> 編輯專案</div></div>
+          <div className="selection-item" style={{ color: '#ff6b6b' }} onClick={() => { onDelete(); setShowMenu(false); }}><div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Trash2 size={16} /> 刪除專案</div></div>
         </div>
       )}
 
-      {/* ★ 第一排：Badge 區塊 
-         (身分膠囊 + 狀態膠囊) 
-      */}
+      {/* 第一排：身分 + 狀態 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        
-        {/* 身份膠囊 */}
         <div style={{ 
           display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '6px', 
           fontSize: '11px', fontWeight: '800', whiteSpace: 'nowrap',
@@ -191,47 +186,24 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
           {isOwner ? <Crown size={11} strokeWidth={3} /> : <User size={11} strokeWidth={3} />}
           {isOwner ? '擁有者' : '協作者'}
         </div>
-
-        {/* 狀態膠囊 (移到這裡了) */}
         {getStatusBadge(project.status)}
       </div>
 
-      {/* ★ 第二排：專案標題 
-         (單行省略)
-      */}
-      <h3 
-        style={{ 
-          fontSize: '20px', fontWeight: '900', color: '#fff', margin: 0,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          paddingRight: '30px' // 預留一點空間給右上角的 Menu 按鈕，避免文字蓋住
-        }}
-        title={project.name}
-      >
+      {/* 第二排：標題 */}
+      <h3 style={{ fontSize: '20px', fontWeight: '900', color: '#fff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: '30px' }} title={project.name}>
         {project.name || '未命名專案'}
       </h3>
 
-      {/* ★ 第三排：日期與成員 
-         (日期移到標題下方)
-      */}
+      {/* 第三排：日期 + 成員 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        
-        {/* 日期 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-sub)', fontSize: '13px', fontWeight: '600' }}>
           <Calendar size={14} />
           <span>{formattedDate}</span>
         </div>
 
-        {/* 成員頭像 (跟在日期後面) */}
         <div style={{ display: 'flex' }}>
           {members.slice(0, 5).map((m, i) => (
-            <div key={m?.id || i} style={{ 
-              width: 24, height: 24, borderRadius: '8px', background: '#252525', 
-              border: '1px solid var(--color-bg-pill)', display: 'flex', alignItems: 'center', 
-              justifyContent: 'center', fontSize: '10px', fontWeight: '900', 
-              marginLeft: i === 0 ? 0 : -6,
-              color: i === 0 ? 'var(--color-primary)' : '#888',
-              boxShadow: '2px 0 5px rgba(0,0,0,0.3)'
-            }}>
+            <div key={m?.id || i} style={{ width: 24, height: 24, borderRadius: '8px', background: '#252525', border: '1px solid var(--color-bg-pill)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '900', marginLeft: i === 0 ? 0 : -6, color: i === 0 ? 'var(--color-primary)' : '#888', boxShadow: '2px 0 5px rgba(0,0,0,0.3)' }}>
               {m?.name ? m.name.charAt(0) : '?'}
             </div>
           ))}
@@ -242,7 +214,6 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
           )}
         </div>
       </div>
-
     </div>
   );
 };

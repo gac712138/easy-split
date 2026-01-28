@@ -1,19 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { message, Modal } from 'antd'; // 引入 Modal 以防萬一
+import { message } from 'antd'; // ★ 移除 Modal 引用
 import { useAuth } from '../context/AuthContext'; 
 
 // Components
 import LoadingScreen from '../components/LoadingScreen';
 import ConfirmModal from '../components/ConfirmModal';
 import ProjectPersonnelModal from '../components/ProjectPersonnelModal';
+import ScrollObserver from '../components/ScrollObserver';
 
 // Project Specific Components
 import ProjectHeader from '../components/project/ProjectHeader';
 import DebtOverviewCard from '../components/project/DebtOverviewCard';
 import SettlementList from '../components/project/SettlementList';
 import TransactionList from '../components/project/TransactionList';
-import CheckSettlementModal from '../components/project/CheckSettlementModal'; // ★ 新增
+import CheckSettlementModal from '../components/project/CheckSettlementModal';
+
+const PAGE_SIZE = 10;
 
 const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransaction, lastUpdated, personnel = [], onRefresh }) => {
   const { user } = useAuth(); 
@@ -26,14 +29,18 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
   const [loading, setLoading] = useState(true);
   const [isSettlementLoading, setIsSettlementLoading] = useState(false);
   
+  // 分頁相關 State
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
   // Modals
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
   const [isStartConfirmOpen, setIsStartConfirmOpen] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
-  
-  // ★ 新增：核銷備註彈窗狀態
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
   const [checkingItem, setCheckingItem] = useState(null);
+  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false); // ★ 歸檔 Modal 狀態
 
   const isOwner = user?.id === project.user_id;
 
@@ -48,41 +55,67 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     return found.linked_user_id === user?.id ? `${found.name} (你)` : found.name;
   };
 
-  // --- Effects ---
-  useEffect(() => {
-    const fetchTransactions = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('transactions')
-          .select(`*, transaction_participants (personnel_id)`)
-          .eq('project_id', project.id)
-          .order('date', { ascending: false });
-
-        if (error) throw error;
-        setTransactions(data || []);
-      } catch (err) { console.error(err); } finally { setLoading(false); }
-    };
-    fetchTransactions();
-  }, [project.id, lastUpdated]);
-
-  const fetchSettlements = async () => {
+  // --- Effects: Data Fetching ---
+  const fetchTransactions = useCallback(async (targetPage, isAppend = false) => {
     try {
+      if (isAppend) setIsFetchingMore(true);
+      const from = targetPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
       const { data, error } = await supabase
-        .from('project_settlements')
-        .select('*')
+        .from('transactions')
+        .select(`*, transaction_participants (personnel_id)`)
         .eq('project_id', project.id)
-        .order('is_cleared', { ascending: true }); 
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
       if (error) throw error;
-      setSettlements(data || []);
-    } catch (err) { console.error(err); }
+
+      const newTransactions = data || [];
+      setHasMore(newTransactions.length === PAGE_SIZE);
+
+      if (isAppend) {
+        setTransactions(prev => [...prev, ...newTransactions]);
+      } else {
+        setTransactions(newTransactions);
+      }
+    } catch (err) {
+      console.error("讀取失敗:", err.message);
+    } finally {
+      setLoading(false);
+      setIsFetchingMore(false);
+    }
+  }, [project.id]);
+
+  useEffect(() => {
+    setPage(0);
+    setHasMore(true);
+    fetchTransactions(0, false);
+  }, [project.id, lastUpdated, fetchTransactions]);
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchTransactions(nextPage, true);
   };
 
   useEffect(() => {
     if (project.status === 'settling' || project.status === 'archived') {
+      const fetchSettlements = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('project_settlements')
+            .select('*')
+            .eq('project_id', project.id)
+            .order('is_cleared', { ascending: true }); 
+          if (error) throw error;
+          setSettlements(data || []);
+        } catch (err) { console.error('讀取結算失敗', err); }
+      };
       fetchSettlements();
     }
   }, [project.id, project.status]);
-
 
   // --- Logic: Calculation ---
   const calculatedSettlements = useMemo(() => {
@@ -136,9 +169,7 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     return result;
   }, [transactions, project.status]);
 
-
   // --- Handlers ---
-
   const executeStartSettlement = async () => {
     setIsSettlementLoading(true);
     try {
@@ -174,53 +205,41 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
     }
   };
 
-  // ★ 新邏輯：點擊分帳項目
+  // ★ 改寫後的歸檔邏輯
+  const handleFinishSettlement = () => {
+    setIsArchiveConfirmOpen(true);
+  };
+
+  const executeArchiveProject = async () => {
+    setIsSettlementLoading(true);
+    try {
+      const { error } = await supabase.rpc('archive_project', { p_project_id: project.id });
+      if (error) throw error;
+      message.success('專案已歸檔 🎉');
+      setIsArchiveConfirmOpen(false);
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      message.error('歸檔失敗');
+    } finally {
+      setIsSettlementLoading(false);
+    }
+  };
+
   const handleItemClick = async (item) => {
     if (item.is_cleared) {
-      // 如果已經勾選，點擊則是「反悔/取消勾選」
       try {
-        const { error } = await supabase
-          .from('project_settlements')
-          .update({ is_cleared: false, remark: null }) // 取消時順便清空備註? 看需求，這裡先清空
-          .eq('id', item.id);
+        const { error } = await supabase.from('project_settlements').update({ is_cleared: false, remark: null }).eq('id', item.id);
         if (error) throw error;
-        fetchSettlements(); // 局部刷新清單即可
-      } catch (err) {
-        message.error('操作失敗');
-      }
+        const { data } = await supabase.from('project_settlements').select('*').eq('project_id', project.id).order('is_cleared', { ascending: true });
+        if(data) setSettlements(data);
+      } catch (err) { message.error('操作失敗'); }
     } else {
-      // 如果還沒勾選，打開備註彈窗
       setCheckingItem(item);
       setIsCheckModalOpen(true);
     }
   };
 
-  // ★ 新邏輯：完成並歸檔 (手動觸發)
-  const handleFinishSettlement = () => {
-    Modal.confirm({
-      title: '確認完成並歸檔？',
-      content: '歸檔後專案將變為唯讀狀態。',
-      okText: '確認歸檔',
-      cancelText: '取消',
-      onOk: async () => {
-        setIsSettlementLoading(true);
-        try {
-          const { error } = await supabase.rpc('archive_project', { p_project_id: project.id });
-          if (error) throw error;
-          message.success('專案已歸檔 🎉');
-          if (onRefresh) await onRefresh();
-        } catch (err) {
-          message.error('歸檔失敗');
-        } finally {
-          setIsSettlementLoading(false);
-        }
-      }
-    });
-  };
-
-
   // --- Render ---
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
       {isSettlementLoading && <LoadingScreen transparent={true} text="處理中..." />}
@@ -233,7 +252,6 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
       />
 
       <main className="band-container" style={{ flex: 1, overflowY: 'auto', paddingBottom: '40px' }}>
-        
         {project.status === 'active' && (
           <DebtOverviewCard 
             calculatedSettlements={calculatedSettlements}
@@ -248,10 +266,8 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
             project={project}
             settlements={settlements}
             isOwner={isOwner}
-            // ★ 修改：點擊項目處理
             onItemClick={handleItemClick}
             onCancel={() => setIsCancelConfirmOpen(true)}
-            // ★ 新增：完成按鈕
             onFinish={handleFinishSettlement}
             getName={getName}
           />
@@ -265,9 +281,16 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
           getName={getName}
         />
 
+        {!loading && transactions.length > 0 && (
+           <ScrollObserver 
+             onIntersect={handleLoadMore} 
+             hasMore={hasMore} 
+             loading={isFetchingMore} 
+           />
+        )}
       </main>
 
-      {/* Modals */}
+      {/* Modals 區域 */}
       <ProjectPersonnelModal 
         isOpen={isPersonnelModalOpen}
         onClose={() => setIsPersonnelModalOpen(false)}
@@ -294,12 +317,28 @@ const ProjectDetailView = ({ project, onBack, onAddTransaction, onEditTransactio
         loading={isSettlementLoading}
       />
 
-      {/* ★ 新增備註彈窗 */}
+      {/* ★ 新增的歸檔 ConfirmModal */}
+      <ConfirmModal
+        open={isArchiveConfirmOpen}
+        title="確認完成並歸檔？"
+        content="歸檔後專案將變為唯讀狀態，無法再進行任何更動。"
+        onConfirm={executeArchiveProject}
+        onCancel={() => setIsArchiveConfirmOpen(false)}
+        loading={isSettlementLoading}
+        okText="確認歸檔"
+      />
+
       <CheckSettlementModal 
         isOpen={isCheckModalOpen}
         onClose={() => setIsCheckModalOpen(false)}
         item={checkingItem}
-        onRefresh={fetchSettlements} // 核銷後刷新清單
+        onRefresh={() => {
+          const refetch = async () => {
+             const { data } = await supabase.from('project_settlements').select('*').eq('project_id', project.id).order('is_cleared', { ascending: true });
+             if(data) setSettlements(data);
+          };
+          refetch();
+        }}
         getName={getName}
       />
     </div>
