@@ -3,39 +3,32 @@ import { X, FolderKanban, LogOut, Settings } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose, user, onSignOut, currentView, onNavigate }) => {
   return (
-    /* 1. 遮罩層：維持地基 3.0 的 active 邏輯 */
     <div className={`sidebar-overlay ${isOpen ? 'active' : ''}`} onClick={onClose}>
-      
-      {/* 2. 抽屜本體：強制 Flex 佈局以支援推力 */}
       <aside 
         className="sidebar-drawer" 
-        style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}
         onClick={(e) => e.stopPropagation()}
+        style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }} // 使用 100dvh 解決手機瀏覽器工具列遮擋問題
       >
         
-        {/* A. 頂部使用者區：強化品牌視覺感 */}
-        <div style={{ padding: '48px 24px 24px', borderBottom: '1px solid var(--color-border)' }}>
+        {/* A. 上方使用者區：移除底邊框以保持乾淨 */}
+        <div style={{ padding: '48px 24px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div className="user-profile">
-              <div 
-                className="brand-logo-tinted" 
-                style={{ 
-                  width: 56, height: 56, borderRadius: '16px', marginBottom: '16px', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                  fontWeight: '900', fontSize: '24px', color: '#fff'
-                }}
-              >
-                島
-              </div>
-              <div style={{ fontWeight: '900', fontSize: '20px', color: '#fff', marginBottom: '4px' }}>
+              <div style={{ 
+                width: 56, height: 56, borderRadius: '16px', 
+                backgroundColor: 'var(--color-primary)', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                fontWeight: '900', fontSize: '24px', marginBottom: '16px',
+                color: '#ffffff',
+                boxShadow: '0 8px 16px rgba(58, 143, 183, 0.3)'
+              }}>島</div>
+              <div style={{ fontWeight: '900', fontSize: '20px', color: '#fff' }}>
                 {user?.email?.split('@')[0] || 'Andrew'}
               </div>
               <div style={{ color: 'var(--color-text-sub)', fontSize: '12px', fontWeight: '600' }}>
                 {user?.email}
               </div>
             </div>
-            
-            {/* 關閉按鈕：對齊地基按鈕樣式 */}
             <button onClick={onClose} className="hamburger-btn" style={{ marginTop: '-8px' }}>
               <X size={24} color="var(--color-text-sub)"/>
             </button>
