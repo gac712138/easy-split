@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, DollarSign, Type, User, Users, Check, ChevronDown, Tag as TagIcon, Trash2 } from 'lucide-react';
+import { X, DollarSign, FileText, User, Users, Check, ChevronDown, Tag as TagIcon, Trash2 } from 'lucide-react'; // ★ 改用 FileText
 import { supabase } from '../lib/supabaseClient';
 import { message } from 'antd';
 import dayjs from 'dayjs';
 import ResponsiveDatePicker from './ResponsiveDatePicker'; 
-import ConfirmModal from './ConfirmModal'; // ★ 1. 引入 ConfirmModal
+import ConfirmModal from './ConfirmModal';
 
 const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, onRefresh, transaction = null }) => {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [activeMenu, setActiveMenu] = useState(null);
-  
-  // ★ 2. 新增確認視窗開關狀態
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   // 表單狀態
@@ -21,7 +19,7 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
     debtor_id: null, participants: [], description: ''
   });
 
-  // 初始化資料 (保持不變)
+  // 初始化資料
   useEffect(() => {
     if (isOpen) {
       supabase.from('categories').select('*').order('name').then(({ data }) => {
@@ -60,7 +58,6 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
     }
   }, [isOpen, project, personnel, transaction]);
 
-  // 存檔邏輯 (保持不變)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading || !formData.amount || !formData.payer_id) return;
@@ -111,15 +108,14 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
     }
   };
 
-  // ★ 3. 真正的刪除執行邏輯 (被 ConfirmModal 呼叫)
   const executeDelete = async () => {
     setLoading(true);
     try {
       await supabase.from('transactions').delete().eq('id', transaction.id);
       message.success('已刪除');
-      setIsDeleteConfirmOpen(false); // 關閉確認窗
-      onClose(); // 關閉編輯窗
-      onRefresh(); // 刷新列表
+      setIsDeleteConfirmOpen(false);
+      onClose();
+      onRefresh();
     } catch (err) {
       message.error('刪除失敗');
     } finally {
@@ -144,7 +140,6 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
             </h3>
             <div style={{ display: 'flex', gap: '16px' }}>
               {transaction && (
-                // ★ 4. 點擊垃圾桶只負責打開確認窗
                 <button 
                   onClick={() => setIsDeleteConfirmOpen(true)} 
                   style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer' }}
@@ -159,7 +154,6 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
           </div>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* ... 表單內容保持不變 ... */}
             
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: '8px', margin: '10px 0 20px' }}>
               <span style={{ fontSize: '20px', color: '#555', fontWeight: 900 }}>NT$</span>
@@ -170,24 +164,31 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <div className="band-input-pill" style={{ flex: 1.8, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Type size={14} color="#666" />
+            {/* ★ 優化後的標題與日期列 */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              {/* 1. 標題：佔據剩餘空間 (flex: 1) */}
+              <div className="band-input-pill" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {/* 換掉醜醜的 Type icon，改用 FileText */}
+                <FileText size={18} color="#666" />
                 <input 
                   type="text" placeholder="標題" value={formData.title} 
                   onChange={e => setFormData({...formData, title: e.target.value})} 
-                  style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', width: '100%' }} required 
+                  style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', width: '100%', fontSize: '15px', fontWeight: '500' }} required 
                 />
               </div>
-              <div style={{ flex: 1.2 }}>
+
+              {/* 2. 日期：固定寬度 150px，確保能完整顯示而不擁擠 */}
+              <div style={{ width: '150px' }}>
                 <ResponsiveDatePicker 
                   value={dayjs(formData.date)} 
                   onChange={(val) => setFormData({...formData, date: val.format('YYYY-MM-DD')})}
                   style={{ 
-                    backgroundColor: 'var(--color-bg-pill)', 
+                    // 讓 DatePicker 的外觀跟 band-input-pill 完全一致
+                    backgroundColor: '#222', 
                     border: '1px solid var(--color-border)',
-                    borderRadius: '16px',
-                    height: '50px' 
+                    borderRadius: '50px', // 跟 Pill 一樣的圓角
+                    height: '50px',
+                    color: '#fff'
                   }}
                 />
               </div>
@@ -249,7 +250,6 @@ const AddTransactionModal = ({ isOpen, onClose, project, personnel = [], user, o
         </div>
       </div>
 
-      {/* ★ 5. 掛載 ConfirmModal */}
       <ConfirmModal
         open={isDeleteConfirmOpen}
         title="刪除帳務？"
