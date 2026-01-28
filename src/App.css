@@ -24,6 +24,23 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html, body, #root {
+  width: 100%;
+  height: 100%; /* 強制高度滿版 */
+  margin: 0;
+  padding: 0;
+  
+  /* ★ 關鍵修正：鎖死瀏覽器，防止橡皮筋效果與網址列伸縮干擾 */
+  overflow: hidden; 
+  position: fixed; 
+  inset: 0;
+  
+  background-color: var(--color-bg-main);
+  color: var(--color-text-main);
+  font-family: var(--font-main);
+  -webkit-font-smoothing: antialiased;
+}
+
 #root {
   width: 100%;
   max-width: 100vw;
@@ -55,7 +72,12 @@ body {
 .sidebar-item.active { background-color: var(--color-beige); color: #333333; }
 
 /* --- 4. 內容區與卡片結構 (Layout & Cards) --- */
-.app-main-layout { display: flex; width: 100vw; height: 100vh; position: relative; }
+.app-main-layout { 
+  display: flex;
+  width: 100%; 
+  height: 100vh; 
+  position: relative;
+  overflow: hidden; }
 
 .content-area-wrapper {
   flex: 1;
