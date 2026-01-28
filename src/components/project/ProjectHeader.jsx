@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, Share2, Users, Plus } from 'lucide-react';
+import { ChevronLeft, Users, Plus } from 'lucide-react';
 import { message } from 'antd';
 
 const ProjectHeader = ({ project, onBack, onOpenPersonnel, onAddTransaction, personnel = [] }) => {
@@ -7,22 +7,11 @@ const ProjectHeader = ({ project, onBack, onOpenPersonnel, onAddTransaction, per
   // 判斷是否只有自己一人 (成員數 <= 1)
   const isAlone = personnel.length <= 1;
 
-  const handleCopyInvite = () => {
-    if (!project.invite_code) {
-      message.error('無邀請碼');
-      return;
-    }
-    const inviteLink = `${window.location.origin}${window.location.pathname}?code=${project.invite_code}`;
-    navigator.clipboard.writeText(inviteLink)
-      .then(() => message.success('已複製邀請連結'))
-      .catch(() => message.error('複製失敗'));
-  };
-
-  // 攔截新增按鈕
+  // 攔截新增帳務按鈕：僅在 Active 且有其他成員時允許
   const handleAddClick = () => {
     if (isAlone) {
-      message.warning('請先新增成員再開始記帳');
-      onOpenPersonnel(); // 自動幫他打開成員視窗
+      message.warning('請先邀請成員再開始記帳');
+      onOpenPersonnel(); 
       return;
     }
     onAddTransaction();
@@ -47,7 +36,7 @@ const ProjectHeader = ({ project, onBack, onOpenPersonnel, onAddTransaction, per
         </button>
       </div>
       
-      {/* 中間標題：確保截斷 */}
+      {/* 中間標題：自動截斷 */}
       <div style={{ flex: 1, minWidth: 0, padding: '0 8px' }}>
         <span style={{ 
           fontSize: '18px', 
@@ -61,12 +50,9 @@ const ProjectHeader = ({ project, onBack, onOpenPersonnel, onAddTransaction, per
         </span>
       </div>
       
-      {/* 右側功能組 */}
-      <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
-        <button onClick={handleCopyInvite} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '12px', padding: '8px', cursor: 'pointer' }}>
-          <Share2 size={20} color="#fff" />
-        </button>
-
+      {/* 右側功能組：僅保留人員管理與新增帳務 */}
+      <div style={{ display: 'flex', gap: '10px', flexShrink: 0, alignItems: 'center' }}>
+        
         {/* 人員按鈕 + 紅點提醒 */}
         <button 
           onClick={onOpenPersonnel} 
@@ -76,7 +62,7 @@ const ProjectHeader = ({ project, onBack, onOpenPersonnel, onAddTransaction, per
             borderRadius: '12px', 
             padding: '8px', 
             cursor: 'pointer',
-            position: 'relative' // 為了放紅點
+            position: 'relative'
           }}
         >
           <Users size={20} color="#fff" />
@@ -89,22 +75,23 @@ const ProjectHeader = ({ project, onBack, onOpenPersonnel, onAddTransaction, per
               height: '10px',
               backgroundColor: '#ff4d4f',
               borderRadius: '50%',
-              border: '2px solid var(--color-bg-main)', // 增加邊框感更明顯
+              border: '2px solid var(--color-bg-main)',
               boxShadow: '0 0 4px rgba(255, 77, 79, 0.5)'
             }} />
           )}
         </button>
         
+        {/* 只有在活躍狀態顯示新增按鈕 */}
         {project.status === 'active' && (
           <button 
-            onClick={handleAddClick} // 使用攔截函式
+            onClick={handleAddClick}
             style={{ 
               background: isAlone ? 'rgba(255,255,255,0.05)' : 'var(--color-primary)', 
               border: 'none', 
               borderRadius: '12px', 
               padding: '8px', 
               cursor: 'pointer',
-              opacity: isAlone ? 0.5 : 1 // 沒人時視覺上稍微淡化
+              opacity: isAlone ? 0.5 : 1
             }}
           >
             <Plus size={20} color="#fff" />

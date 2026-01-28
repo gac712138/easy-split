@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, Trash2, Edit2, Check, User, Link as LinkIcon, Plus, GripVertical } from 'lucide-react';
+import { X, Users, Trash2, Edit2, Check, User, Link as LinkIcon, Plus, GripVertical, Share2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { message, Modal } from 'antd';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -8,8 +8,9 @@ import { CSS } from '@dnd-kit/utilities';
 
 import ConfirmModal from './ConfirmModal';
 
-const SortableItem = ({ id, children }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+// --- 拖拽排序子組件 ---
+const SortableItem = ({ id, children, isReadOnly }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: isReadOnly });
   
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -21,17 +22,28 @@ const SortableItem = ({ id, children }) => {
 
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
-      <div className="band-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: isDragging ? '#2a2a2a' : undefined, boxShadow: isDragging ? '0 10px 20px rgba(0,0,0,0.5)' : undefined }}>
-        <div {...listeners} style={{ marginRight: '12px', cursor: 'grab', color: '#666', display: 'flex', alignItems: 'center' }}>
-          <GripVertical size={20} />
-        </div>
+      <div className="band-card" style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        padding: '12px 16px', 
+        background: isDragging ? '#2a2a2a' : undefined, 
+        boxShadow: isDragging ? '0 10px 20px rgba(0,0,0,0.5)' : undefined,
+        opacity: isReadOnly ? 0.9 : 1
+      }}>
+        {/* 唯讀模式下隱藏拖拽手把 */}
+        {!isReadOnly && (
+          <div {...listeners} style={{ marginRight: '12px', cursor: 'grab', color: '#666', display: 'flex', alignItems: 'center' }}>
+            <GripVertical size={20} />
+          </div>
+        )}
         {children}
       </div>
     </div>
   );
 };
 
-// ★ 接收 user 參數
+// --- 主組件 ---
 const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -41,6 +53,9 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
 
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState(null);
+
+  // ★ 狀態判定：結算中或已歸檔則進入唯讀模式
+  const isReadOnly = project?.status === 'settling' || project?.status === 'archived';
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -73,6 +88,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
   }, [isOpen, project]);
 
   const handleDragEnd = async (event) => {
+    if (isReadOnly) return;
     const { active, over } = event;
     if (active.id !== over.id) {
       setMembers((items) => {
@@ -101,7 +117,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
   };
 
   const handleAdd = async () => {
-    if (!newName.trim()) return;
+    if (isReadOnly || !newName.trim()) return;
     try {
       const maxSortOrder = members.length > 0 ? Math.max(...members.map(m => m.sort_order || 0)) : 0;
       const { error } = await supabase.from('personnel').insert([{
@@ -120,7 +136,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
   };
 
   const handleUpdate = async (id) => {
-    if (!editingName.trim()) return;
+    if (isReadOnly || !editingName.trim()) return;
     try {
       const { error } = await supabase.from('personnel')
         .update({ name: editingName.trim() })
@@ -135,28 +151,37 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
     }
   };
 
-  // ★ 1. 關鍵修改：刪除檢查邏輯
+  // 分享功能移至此處
+  const handleCopyInvite = () => {
+    if (!project?.invite_code) {
+      message.error('無邀請碼');
+      return;
+    }
+    const inviteLink = `${window.location.origin}${window.location.pathname}?code=${project.invite_code}`;
+    navigator.clipboard.writeText(inviteLink)
+      .then(() => message.success('已複製邀請連結'))
+      .catch(() => message.error('複製失敗'));
+  };
+
   const handleDeleteClick = async (member) => {
-    // 規則 A: 專案擁有者絕對不能被刪除 (保護專案)
+    if (isReadOnly) return;
+    
     if (member.linked_user_id === project.user_id) {
       message.warning('無法刪除專案擁有者 (Owner)。');
       return;
     }
 
-    // 規則 B: 無論是誰，都不能刪除自己 (要使用退出功能，或避免誤刪)
     if (member.linked_user_id === user?.id) {
         message.warning('你不能將自己剔除。');
         return;
     }
 
-    // 規則 C: 如果你不是 Owner，你不能剔除其他真人成員 (權限控制)
     const isOwner = user?.id === project.user_id;
     if (!isOwner && member.linked_user_id) {
         message.warning('只有專案擁有者可以剔除成員。');
         return;
     }
 
-    // 規則 D: 檢查帳務安全 (若有記帳，則不可刪)
     const { count: txCount } = await supabase.from('transactions').select('*', { count: 'exact', head: true }).or(`payer_id.eq.${member.id},debtor_id.eq.${member.id}`);
     const { count: partCount } = await supabase.from('transaction_participants').select('*', { count: 'exact', head: true }).eq('personnel_id', member.id);
 
@@ -165,16 +190,13 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
       return;
     }
 
-    // 通過檢查，允許踢人
     setMemberToDelete(member);
     setIsDeleteConfirmOpen(true);
   };
 
   const executeDelete = async () => {
     if (!memberToDelete) return;
-
     try {
-      // 踢出真人：移除權限
       if (memberToDelete.linked_user_id) {
          await supabase
            .from('project_members')
@@ -182,8 +204,6 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
            .eq('project_id', project.id)
            .eq('user_id', memberToDelete.linked_user_id);
       }
-
-      // 刪除名單
       const { error } = await supabase.from('personnel').delete().eq('id', memberToDelete.id);
       if (error) throw error;
       
@@ -216,11 +236,18 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
             </button>
           </div>
 
+          {/* 唯讀模式警示訊息 */}
+          {isReadOnly && (
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '10px 16px', borderRadius: '10px', marginBottom: '16px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
+              專案結算中或已歸檔，成員資料僅供查看
+            </div>
+          )}
+
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '20px' }}>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={members.map(m => m.id)} strategy={verticalListSortingStrategy}>
                 {members.map(p => (
-                  <SortableItem key={p.id} id={p.id}>
+                  <SortableItem key={p.id} id={p.id} isReadOnly={isReadOnly}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                       <div style={{ position: 'relative' }}>
                         <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -244,46 +271,73 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
                           <span style={{ color: '#666', fontSize: '12px' }}>
                             {p.linked_user_id 
                               ? (p.linked_user_id === project.user_id ? '專案擁有者' : (p.linked_user_id === user?.id ? '已綁定 (你)' : '已綁定成員'))
-                              : '未綁定 (可供認領)'}
+                              : '未認領成員'}
                           </span>
                         </div>
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px', marginLeft: '12px' }} onPointerDown={(e) => e.stopPropagation()}>
-                      {editingId === p.id ? (
-                        <div style={{display: 'flex', gap: '8px'}}>
-                          <button onClick={() => handleUpdate(p.id)} style={{ padding: '8px', borderRadius: '8px', background: 'var(--color-primary)', border: 'none', color: '#fff', cursor: 'pointer' }}><Check size={18} /></button>
-                          <button onClick={() => setEditingId(null)} style={{ padding: '8px', borderRadius: '8px', background: '#333', border: 'none', color: '#ccc', cursor: 'pointer' }}><X size={18} /></button>
-                        </div>
-                      ) : (
-                        <div style={{display: 'flex', gap: '8px'}}>
-                          <button onClick={() => { setEditingId(p.id); setEditingName(p.name); }} style={{ padding: '8px', borderRadius: '8px', background: '#333', border: 'none', color: '#ccc', cursor: 'pointer' }}><Edit2 size={18} /></button>
-                          
-                          <button onClick={() => handleDeleteClick(p)} style={{ padding: '8px', borderRadius: '8px', background: 'rgba(255, 107, 107, 0.1)', border: 'none', color: '#ff6b6b', cursor: 'pointer' }}><Trash2 size={18} /></button>
-                        </div>
-                      )}
-                    </div>
+                    {/* 唯讀模式下隱藏動作按鈕 */}
+                    {!isReadOnly && (
+                      <div style={{ display: 'flex', gap: '8px', marginLeft: '12px' }} onPointerDown={(e) => e.stopPropagation()}>
+                        {editingId === p.id ? (
+                          <div style={{display: 'flex', gap: '8px'}}>
+                            <button onClick={() => handleUpdate(p.id)} style={{ padding: '8px', borderRadius: '8px', background: 'var(--color-primary)', border: 'none', color: '#fff', cursor: 'pointer' }}><Check size={18} /></button>
+                            <button onClick={() => setEditingId(null)} style={{ padding: '8px', borderRadius: '8px', background: '#333', border: 'none', color: '#ccc', cursor: 'pointer' }}><X size={18} /></button>
+                          </div>
+                        ) : (
+                          <div style={{display: 'flex', gap: '8px'}}>
+                            <button onClick={() => { setEditingId(p.id); setEditingName(p.name); }} style={{ padding: '8px', borderRadius: '8px', background: '#333', border: 'none', color: '#ccc', cursor: 'pointer' }}><Edit2 size={18} /></button>
+                            <button onClick={() => handleDeleteClick(p)} style={{ padding: '8px', borderRadius: '8px', background: 'rgba(255, 107, 107, 0.1)', border: 'none', color: '#ff6b6b', cursor: 'pointer' }}><Trash2 size={18} /></button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </SortableItem>
                 ))}
               </SortableContext>
             </DndContext>
           </div>
 
-          <div style={{ paddingTop: '16px', borderTop: '1px solid #333', flexShrink: 0 }}>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <input 
-                type="text" placeholder="輸入新成員名稱" value={newName} onChange={(e) => setNewName(e.target.value)}
-                style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', background: '#222', border: '1px solid #444', color: '#fff', outline: 'none' }}
-                onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-              />
-              <button 
-                onClick={handleAdd} disabled={!newName.trim()}
-                style={{ padding: '0 20px', borderRadius: '12px', background: newName.trim() ? 'var(--color-primary)' : '#444', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Plus size={20} /> 新增
-              </button>
-            </div>
+          <div style={{ paddingTop: '16px', borderTop: '1px solid #333', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            
+            {/* 隱藏在此的分享按鈕 */}
+            <button 
+              onClick={handleCopyInvite}
+              style={{ 
+                width: '100%', 
+                padding: '12px', 
+                borderRadius: '12px', 
+                background: 'rgba(255,255,255,0.05)', 
+                border: '1px dashed #444', 
+                color: 'var(--color-primary)', 
+                fontWeight: '700', 
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <Share2 size={18} /> 複製專案邀請連結
+            </button>
+
+            {/* 新增成員區塊：唯讀模式下隱藏 */}
+            {!isReadOnly && (
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <input 
+                  type="text" placeholder="輸入新成員名稱" value={newName} onChange={(e) => setNewName(e.target.value)}
+                  style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', background: '#222', border: '1px solid #444', color: '#fff', outline: 'none' }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                />
+                <button 
+                  onClick={handleAdd} disabled={!newName.trim()}
+                  style={{ padding: '0 20px', borderRadius: '12px', background: newName.trim() ? 'var(--color-primary)' : '#444', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={20} /> 新增
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -292,7 +346,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
         open={isDeleteConfirmOpen}
         title={`刪除/踢出 ${memberToDelete?.name}？`}
         content={memberToDelete?.linked_user_id 
-          ? "此成員已綁定 App 帳號。刪除後，他將失去專案存取權限且無法復原。" 
+          ? "此成員已綁定帳號。刪除後，他將失去專案存取權限且無法復原。" 
           : "確定要刪除這位成員嗎？此動作無法復原。"}
         onConfirm={executeDelete}
         onCancel={() => {
