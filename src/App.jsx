@@ -9,6 +9,7 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import SettingsView from './views/SettingsView'; 
 import ProjectDetailView from './views/ProjectDetailView';
+import SecuritySettingsView from './views/SecuritySettingsView'; // 記得引入安全性頁面
 
 // 彈窗組件
 import CreateProjectModal from './components/CreateProjectModal';
@@ -17,6 +18,8 @@ import AddTransactionModal from './components/AddTransactionModal';
 import ConfirmModal from './components/ConfirmModal';
 import JoinProjectModal from './components/JoinProjectModal'; 
 
+// 動畫組件
+import LoadingScreen from './components/LoadingScreen';
 import './App.css';
 
 function App() {
@@ -51,13 +54,11 @@ function App() {
     if (!userId) return;
     setIsDataLoading(true);
     try {
-      // V2 修正：RLS 自動篩選「擁有的」+「參與的」
       const [projRes, persRes] = await Promise.all([
         supabase.from('projects')
           .select('*') 
           .order('created_at', { ascending: false }),
           
-        // V2 修正：RLS 自動篩選「我參與的專案」的人員
         supabase.from('personnel')
           .select('*')
       ]);
@@ -72,10 +73,8 @@ function App() {
     }
   }, []);
 
-  /* --- 4. 邀請連結攔截與處理 (Deep Link Handler) --- */
+  /* --- 4. 邀請連結攔截與處理 --- */
   const processInviteCode = async (code) => {
-    // ★ 關鍵修正：改用 RPC 安全函式檢查專案是否存在 (繞過 RLS)
-    // 原本的 .from('projects')... 會因為新用戶還不是成員而被 RLS 擋住
     const { data: project, error } = await supabase
       .rpc('get_project_by_invite_code', { code_input: code }) 
       .single();
@@ -88,7 +87,6 @@ function App() {
         return;
     }
 
-    // B. 檢查是否已經是成員 (防呆)
     const { data: member } = await supabase
       .from('project_members')
       .select('id')
@@ -96,28 +94,31 @@ function App() {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    // 清除暫存代碼
     localStorage.removeItem('pending_invite_code');
     window.history.replaceState({}, document.title, window.location.pathname);
 
     if (member) {
         message.info(`你已經是「${project.name}」的成員囉！`);
-        setSelectedProject(project); // 直接跳轉到該專案
+        setSelectedProject(project); 
         return;
     }
 
-    // C. 通過檢查，打開認領彈窗
     setTargetJoinProject(project);
     setIsJoinModalOpen(true);
   };
 
-  /* --- 5. 初始化與監聽 --- */
+  /* --- 5. 初始化與監聽 (修正重點) --- */
   useEffect(() => {
     if (!user) {
       const root = document.documentElement.style;
       ['primary', 'bg', 'card', 'text-main', 'text-sub'].forEach(p => root.removeProperty(`--color-${p}`));
       return;
     }
+
+    // ★ 強制重置 UI 狀態 (解決你的需求)
+    setIsMenuOpen(false);       // 1. 確保側邊欄關閉
+    setCurrentView('projects'); // 2. 確保回到專案列表
+    setSelectedProject(null);   // 3. 確保沒有殘留的選中專案
 
     const init = async () => {
       // A. 載入主題
@@ -132,7 +133,7 @@ function App() {
       // B. 載入資料
       await refreshGlobalData(user.id);
 
-      // C. 檢查是否有「待處理的邀請」 (來自 URL 或 LocalStorage)
+      // C. 檢查邀請碼
       const params = new URLSearchParams(window.location.search);
       const codeFromUrl = params.get('code');
       const codeFromStorage = localStorage.getItem('pending_invite_code');
@@ -154,6 +155,10 @@ function App() {
 
   return (
     <div className="app-main-layout">
+      
+      {/* 全域呼吸燈 */}
+      {isDataLoading && <LoadingScreen text="EasySplit" />}
+
       {/* 側邊欄遮罩 */}
       <div 
         className={`sidebar-overlay ${isMenuOpen ? 'active' : ''}`} 
@@ -192,23 +197,16 @@ function App() {
             <ProjectDetailView 
               project={selectedProject} 
               onBack={() => setSelectedProject(null)} 
-              
-              // 傳入全域人員名單 (給 V2 查表用)
               personnel={personnel} 
-              
-              // 傳入刷新全域資料的 function，讓內層 Modal 可以更新
               onRefresh={() => refreshGlobalData(user.id)}
-
               onAddTransaction={() => {
                 setEditingTransaction(null);
                 setIsAddTransactionOpen(true);
               }}
-              
               onEditTransaction={(transaction) => {
                 setEditingTransaction(transaction);
                 setIsAddTransactionOpen(true);
               }}
-
               lastUpdated={refreshTrigger}
             />
           )
@@ -219,7 +217,6 @@ function App() {
 
       {/* --- 全域 Modals --- */}
       
-      {/* 1. 建立專案 */}
       <CreateProjectModal 
         isOpen={isCreateModalOpen} 
         onClose={() => setIsCreateModalOpen(false)} 
@@ -227,7 +224,6 @@ function App() {
         onRefresh={() => refreshGlobalData(user.id)}
       />
 
-      {/* 2. 編輯專案 */}
       <EditProjectModal 
         isOpen={!!editProject}
         project={editProject}
@@ -237,7 +233,6 @@ function App() {
         onRefresh={() => refreshGlobalData(user.id)}
       />
 
-      {/* 3. 新增/編輯帳務 */}
       {selectedProject && (
         <AddTransactionModal
           isOpen={isAddTransactionOpen}
@@ -253,19 +248,17 @@ function App() {
         />
       )}
 
-      {/* 4. 加入專案 (認領身分) 彈窗 */}
       <JoinProjectModal 
         isOpen={isJoinModalOpen}
         onClose={() => setIsJoinModalOpen(false)}
         project={targetJoinProject}
         user={user}
         onSuccess={(project) => {
-          refreshGlobalData(user.id); // 刷新列表
-          setSelectedProject(project); // 直接進入該專案
+          refreshGlobalData(user.id); 
+          setSelectedProject(project); 
         }}
       />
 
-      {/* 5. 登出確認 */}
       <ConfirmModal
         open={isLogoutConfirmOpen} 
         title="確認登出系統？" 
