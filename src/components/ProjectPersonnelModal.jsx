@@ -10,7 +10,6 @@ import ConfirmModal from './ConfirmModal';
 
 // --- 拖拽排序子組件 ---
 const SortableItem = ({ id, children, isReadOnly }) => {
-  // ★ attributes 與 listeners 抽出來，準備綁定到手把上
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: isReadOnly });
   
   const style = {
@@ -18,7 +17,7 @@ const SortableItem = ({ id, children, isReadOnly }) => {
     transition,
     zIndex: isDragging ? 999 : 'auto',
     position: 'relative',
-    touchAction: 'none' // ★ 重要：防止行動端瀏覽器預設手勢干擾拖拽
+    // ★ 重點 1：這裡絕對不能放 touchAction: 'none'，否則整個卡片都無法捲動
   };
 
   return (
@@ -32,7 +31,7 @@ const SortableItem = ({ id, children, isReadOnly }) => {
         boxShadow: isDragging ? '0 10px 20px rgba(0,0,0,0.5)' : undefined,
         opacity: isReadOnly ? 0.9 : 1
       }}>
-        {/* ★ 關鍵修改：將 attributes 與 listeners 綁定在這裡，只有圖示區塊能觸發拖拽 */}
+        {/* ★ 重點 2：只有這個圖示區域是拖拽手把 (Handle) */}
         {!isReadOnly ? (
           <div 
             {...attributes} 
@@ -43,16 +42,17 @@ const SortableItem = ({ id, children, isReadOnly }) => {
               color: '#666', 
               display: 'flex', 
               alignItems: 'center',
-              padding: '8px 4px' // 增加點擊面積
+              padding: '8px 4px',
+              touchAction: 'none' // ★ 重點 3：touch-action 只放在這裡，確保只有按住這裡才攔截捲動
             }}
           >
             <GripVertical size={20} />
           </div>
         ) : (
-          <div style={{ width: '24px', marginRight: '12px' }} /> // 唯讀時佔位
+          <div style={{ width: '24px', marginRight: '12px' }} />
         )}
         
-        {/* 其他區域：因為沒有 listeners，所以點擊此處會正常觸發原生捲動 */}
+        {/* 其他區域：因為沒有 touch-action: none，所以點擊此處會觸發瀏覽器的原生捲動 */}
         {children}
       </div>
     </div>
@@ -70,14 +70,14 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState(null);
 
+  // 判斷是否為唯讀模式
   const isReadOnly = project?.status === 'settling' || project?.status === 'archived';
 
-  // ★ 關鍵修改：設定 Sensor 以支援「長按」與「流暢捲動」
   const sensors = useSensors(
     useSensor(PointerSensor, { 
       activationConstraint: { 
-        delay: 200,      // ★ 長按 200ms 才觸發拖拽，防止滑動列表時誤觸
-        tolerance: 5     // ★ 手指移動超過 5px 則取消長按計時，確保是在「原地長按」
+        // ★ 重點 4：設定移動距離限制，防止微小抖動被誤判為拖拽
+        distance: 5 
       } 
     }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -95,7 +95,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
     if (error) {
       message.error('讀取失敗');
     } else {
-      setMembers(data);
+      setMembers(data || []);
     }
     setLoading(false);
   };
@@ -131,7 +131,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
     }));
     try {
       await supabase.from('personnel').upsert(updates);
-      onRefresh && onRefresh();
+      if (onRefresh) onRefresh();
     } catch (err) {
       console.error('排序更新失敗', err);
     }
@@ -150,7 +150,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
       message.success('已新增成員');
       setNewName('');
       fetchMembers();
-      onRefresh && onRefresh();
+      if (onRefresh) onRefresh();
     } catch (err) {
       message.error('新增失敗');
     }
@@ -166,7 +166,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
       message.success('更名成功');
       setEditingId(null);
       fetchMembers();
-      onRefresh && onRefresh();
+      if (onRefresh) onRefresh();
     } catch (err) {
       message.error('更新失敗');
     }
@@ -211,7 +211,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
       if (error) throw error;
       message.success('已刪除成員');
       fetchMembers();
-      onRefresh && onRefresh();
+      if (onRefresh) onRefresh();
     } catch (err) {
       message.error('刪除失敗');
     } finally {
@@ -237,6 +237,12 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
             </button>
           </div>
 
+          {isReadOnly && (
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '10px 16px', borderRadius: '10px', marginBottom: '16px', color: '#888', fontSize: '13px', textAlign: 'center' }}>
+              專案結算中或已歸檔，成員資料僅供查看
+            </div>
+          )}
+
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '20px' }}>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={members.map(m => m.id)} strategy={verticalListSortingStrategy}>
@@ -254,8 +260,9 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
 
                       {editingId === p.id ? (
                         <input 
-                          autoFocus value={editingName} onChange={(e) => setEditingName(e.target.value)}
-                          onPointerDown={(e) => e.stopPropagation()} // ★ 防止輸入框點擊時誤觸拖拽
+                          autoFocus value={editingName} 
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onPointerDown={(e) => e.stopPropagation()} 
                           style={{ background: '#000', border: '1px solid var(--color-primary)', color: '#fff', padding: '6px 10px', borderRadius: '8px', width: '100%', outline: 'none' }}
                         />
                       ) : (
@@ -289,7 +296,6 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
             </DndContext>
           </div>
 
-          {/* 底部按鈕區 */}
           <div style={{ paddingTop: '16px', borderTop: '1px solid #333', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <button onClick={handleCopyInvite} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px dashed #444', color: 'var(--color-primary)', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Share2 size={18} /> 複製專案邀請連結
@@ -306,7 +312,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
 
       <ConfirmModal
         open={isDeleteConfirmOpen}
-        title={`刪除成員？`}
+        title={`移除成員？`}
         content={`確定要移除 ${memberToDelete?.name} 嗎？此動作無法復原。`}
         onConfirm={executeDelete}
         onCancel={() => { setIsDeleteConfirmOpen(false); setMemberToDelete(null); }}
