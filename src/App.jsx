@@ -15,6 +15,7 @@ import ConfirmModal from './components/ConfirmModal';
 import JoinProjectModal from './components/JoinProjectModal'; 
 import SetupProfileModal from './components/SetupProfileModal'; 
 import LoadingScreen from './components/LoadingScreen';
+import TutorialModal from './components/TutorialModal';
 import './App.css';
 
 const PROJECT_PAGE_SIZE = 10;
@@ -220,7 +221,7 @@ function App() {
     <div className="app-main-layout">
       {/* 修正：使用動態 loadingText，若無則顯示 EasySplit */}
       {isDataLoading && <LoadingScreen text={loadingText || "EasySplit"} />}
-
+      <TutorialModal />
       <div className={`sidebar-overlay ${isMenuOpen ? 'active' : ''}`} onClick={() => setIsMenuOpen(false)} />
       
       <Sidebar 

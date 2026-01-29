@@ -329,13 +329,13 @@ const handleCopyInvite = () => {
           </div>
 
           <div style={{ paddingTop: '16px', borderTop: '1px solid #333', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <button onClick={handleCopyInvite} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px dashed #444', color: 'var(--color-primary)', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <button onClick={handleCopyInvite} style={{fontSize: '17px', width: '100%', padding: '6px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px dashed #444', color: 'var(--color-primary)', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Share2 size={18} /> 複製專案邀請連結
             </button>
             {!isReadOnly && (
               <div style={{ display: 'flex', gap: '12px' }}>
-                <input type="text" placeholder="輸入新成員名稱" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', background: '#222', border: '1px solid #444', color: '#fff', outline: 'none' }} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} />
-                <button onClick={handleAdd} disabled={!newName.trim()} style={{ padding: '0 20px', borderRadius: '12px', background: newName.trim() ? 'var(--color-primary)' : '#444', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Plus size={20} /> 新增</button>
+                <input type="text" placeholder="輸入新成員名稱" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ flex: 1, padding: '8px 14px', borderRadius: '12px',fontSize: '18px', background: '#222', border: '1px solid #444', color: '#fff', outline: 'none' }} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} />
+                <button onClick={handleAdd} disabled={!newName.trim()} style={{ padding: '0px 20px 0px 15px', borderRadius: '12px', background: newName.trim() ? 'var(--color-primary)' : '#444', border: 'none', color: '#fff',fontSize: '17px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Plus size={20} /> 新增</button>
               </div>
             )}
           </div>
