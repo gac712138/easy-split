@@ -25,7 +25,6 @@ const SettingItem = ({ icon: Icon, label, onClick, showBadge }) => (
     }}
   >
     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-      {/* 圖示容器：使用主題色 + 15% 透明度背景 */}
       <div style={{ 
         width: '44px', height: '44px', borderRadius: '14px',
         background: 'rgba(58, 143, 183, 0.15)', 
@@ -39,7 +38,6 @@ const SettingItem = ({ icon: Icon, label, onClick, showBadge }) => (
     </div>
 
     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-      {/* 引導紅點 */}
       {showBadge && (
         <span style={{ 
           width: '8px', 
@@ -54,11 +52,22 @@ const SettingItem = ({ icon: Icon, label, onClick, showBadge }) => (
   </div>
 );
 
-const SettingsView = ({ onOpenMenu, user, showBadge }) => {
+// ★ 增加 onRefresh 到參數列
+const SettingsView = ({ onOpenMenu, user, showBadge, onRefresh }) => {
   const [subView, setSubView] = useState(null);
 
   // 子頁面路由
-  if (subView === 'types') return <EventTypeMgmtView onBack={() => setSubView(null)} user={user} />;
+  // ★ 關鍵修正：將 onRefresh 傳給 EventTypeMgmtView
+  if (subView === 'types') {
+    return (
+      <EventTypeMgmtView 
+        onBack={() => setSubView(null)} 
+        user={user} 
+        onRefresh={onRefresh} 
+      />
+    );
+  }
+  
   if (subView === 'theme') return <ThemeSettingsView onBack={() => setSubView(null)} user={user} />;
   if (subView === 'security') return <SecuritySettingsView onBack={() => setSubView(null)} user={user} />;
 
@@ -67,8 +76,18 @@ const SettingsView = ({ onOpenMenu, user, showBadge }) => {
       
       <div className="content-area-wrapper">
         <header className="navbar">
-          <button onClick={onOpenMenu} className="hamburger-btn">
+          {/* ★ 漢堡按鈕紅點同步 */}
+          <button onClick={onOpenMenu} className="hamburger-btn" style={{ position: 'relative' }}>
             <Menu size={24} color="var(--color-text-main)"/>
+            {showBadge && (
+              <span style={{ 
+                position: 'absolute', top: '8px', right: '8px',
+                width: '10px', height: '10px', 
+                background: '#ff6b6b', borderRadius: '50%',
+                border: '2px solid var(--color-bg-main)',
+                boxShadow: '0 0 8px rgba(255, 107, 107, 0.5)'
+              }} />
+            )}
           </button>
           
           <span className="nav-brand">系統設定</span>
@@ -79,7 +98,6 @@ const SettingsView = ({ onOpenMenu, user, showBadge }) => {
         <main className="band-container">
           <div style={{ padding: '24px 0' }}>
             
-            {/* 活動類型管理：僅在此項目套用紅點邏輯 */}
             <SettingItem 
               icon={Tags} 
               label="帳款類型管理" 

@@ -8,7 +8,7 @@ import { CSS } from '@dnd-kit/utilities';
 import ConfirmModal from '../components/ConfirmModal';
 
 /**
- * 1. 列表項目：物理優化版
+ * 1. 列表項目組件
  * 修正點：釋放卡片捲動權限，僅鎖定手把拖曳
  */
 const SortableTypeItem = ({ item, onEdit, onDelete }) => {
@@ -32,19 +32,17 @@ const SortableTypeItem = ({ item, onEdit, onDelete }) => {
         alignItems: 'center', 
         padding: '16px 20px', 
         marginBottom: '12px',
-        // ★ 關鍵修正：這裡移除了 touchAction: 'none'
       }}
     >
        {/* 拖曳手把區 */}
        <div 
          {...attributes} {...listeners} 
          style={{ 
-            cursor: 'grab', 
-            padding: '8px 12px 8px 0', 
-            display: 'flex', 
-            alignItems: 'center',
-            // ★ 關鍵修正：將 touchAction 加在這裡
-            touchAction: 'none' 
+           cursor: 'grab', 
+           padding: '8px 12px 8px 0', 
+           display: 'flex', 
+           alignItems: 'center',
+           touchAction: 'none' 
          }}
        >
           <GripVertical size={18} color="var(--color-text-sub)" />
@@ -72,6 +70,7 @@ const SortableTypeItem = ({ item, onEdit, onDelete }) => {
   );
 };
 
+// 主組件
 const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
   const [items, setItems] = useState([]);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -98,22 +97,61 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
       const newIndex = items.findIndex((i) => i.id === over.id);
       const newArray = arrayMove(items, oldIndex, newIndex);
       setItems(newArray);
-      const updates = newArray.map((item, index) => ({ id: item.id, user_id: user.id, sort_order: index, name: item.name, primary_color: item.primary_color }));
+      const updates = newArray.map((item, index) => ({ 
+        id: item.id, 
+        user_id: user.id, 
+        sort_order: index, 
+        name: item.name, 
+        primary_color: item.primary_color 
+      }));
       await supabase.from('categories').upsert(updates);
     }
   };
 
+  // ★ 核心：儲存邏輯 (包含新增與修改)
   const handleSave = async (e) => {
     e.preventDefault();
     if (loading || !formData.name.trim()) return;
     setLoading(true);
     const colorHex = typeof formData.primary_color === 'string' ? formData.primary_color : formData.primary_color.toHexString();
     const payload = { name: formData.name.trim(), primary_color: colorHex, user_id: user.id };
+    
     try {
-      if (editingItem) { await supabase.from('categories').update(payload).eq('id', editingItem.id); }
-      else { await supabase.from('categories').insert([{ ...payload, sort_order: items.length }]); }
-      message.success('已儲存帳款類型'); setIsSheetOpen(false); fetchTypes(); if (onRefresh) onRefresh();
-    } catch (err) { message.error('儲存失敗'); } finally { setLoading(false); }
+      if (editingItem) { 
+        await supabase.from('categories').update(payload).eq('id', editingItem.id); 
+      } else { 
+        await supabase.from('categories').insert([{ ...payload, sort_order: items.length }]); 
+      }
+      
+      message.success('已儲存帳款類型'); 
+      setIsSheetOpen(false); 
+      fetchTypes(); 
+      
+      // ★ 觸發 App.jsx 檢查分類數量，進而關閉紅點
+      if (onRefresh) onRefresh();
+
+    } catch (err) { 
+      message.error('儲存失敗'); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
+
+  // ★ 核心：刪除邏輯
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await supabase.from('categories').delete().eq('id', deleteTarget.id);
+      message.success('已移除帳款類型');
+      setDeleteTarget(null);
+      fetchTypes();
+
+      // ★ 觸發 App.jsx 重新檢查，若刪完最後一筆則紅點會重新出現
+      if (onRefresh) onRefresh();
+
+    } catch (err) {
+      message.error('移除失敗');
+    }
   };
 
   const openSheet = (item = null) => {
@@ -123,10 +161,9 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
   };
 
   return (
-    /* 核心物理修復：垂直堆疊防止內容失蹤 */
     <div className="app-main-layout" style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
       
-      {/* 1. 導航列：絕對置中保護標題 */}
+      {/* 1. 導航列 */}
       <header className="navbar" style={{ flexShrink: 0, position: 'relative', width: '100%' }}>
         <button onClick={onBack} className="hamburger-btn" style={{ zIndex: 10 }}>
           <ChevronLeft size={24} color="#ffffff" />
@@ -138,32 +175,21 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
             帳款類型管理
         </span>
         <button 
-  onClick={() => openSheet()} 
-  className="navbar-add-btn" 
-  style={{ 
-    zIndex: 10,
-    display: 'flex',           // ★ 修正 1：使用 Flex 佈局
-    alignItems: 'center',      // ★ 修正 2：垂直居中
-    justifyContent: 'center',  // ★ 修正 3：水平居中
-    gap: '6px',                // ★ 修正 4：圖示與文字的間距
-    padding: '0 18px',         // ★ 修正 5：左右撐開空間
-    width: 'auto',             // ★ 修正 6：寬度改為自動，配合內容
-    minWidth: '110px',         // ★ 修正 7：設定最小寬度避免太短
-    height: '42px',            // ★ 修正 8：固定高度維持鋼鐵紮實感
-    borderRadius: '50px',      // ★ 修正 9：Pill 形狀按鈕
-    backgroundColor: 'var(--color-primary)', // 使用你的主題綠色
-    border: 'none',
-    boxShadow: '0 4px 15px rgba(0,0,0,0.3)'   // 增加層次感
-  }}
->
-  {/* 文字放前面或後面皆可，通常 icon 放左邊或右邊 */}
-  
-  <Plus size={18} color="#ffffff" strokeWidth={3} />
-  <span style={{ fontSize: '15px', fontWeight: '800', color: '#fff' }}>新增</span>
-</button>
+          onClick={() => openSheet()} 
+          className="navbar-add-btn" 
+          style={{ 
+            zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', 
+            padding: '0 18px', width: 'auto', minWidth: '110px', height: '42px', 
+            borderRadius: '50px', backgroundColor: 'var(--color-primary)', border: 'none',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+          }}
+        >
+          <Plus size={18} color="#ffffff" strokeWidth={3} />
+          <span style={{ fontSize: '15px', fontWeight: '800', color: '#fff' }}>新增</span>
+        </button>
       </header>
 
-      {/* 2. 內容容器：地基寬度保護 */}
+      {/* 2. 內容容器 */}
       <div className="content-area-wrapper" style={{ flex: 1, overflowY: 'auto' }}>
         <main className="band-container" style={{ paddingTop: '24px' }}>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -184,7 +210,7 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
         </main>
       </div>
 
-      {/* 3. 地基抽屜彈窗 */}
+      {/* 3. 抽屜彈窗 */}
       <div className={`drawer-overlay ${isSheetOpen ? 'active' : ''}`} onClick={() => !loading && setIsSheetOpen(false)}>
         <div className="drawer-container" style={{ padding: '32px 24px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ width: '40px', height: '5px', background: '#333', borderRadius: '10px', margin: '0 auto 24px' }} />
@@ -215,11 +241,7 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
                     showText value={formData.primary_color}
                     onChange={(color) => setFormData({...formData, primary_color: color})}
                     getPopupContainer={(trigger) => trigger.parentElement} 
-                    style={{ 
-                      width: '100%', height: '40px', border: 'none', 
-                      display: 'flex', alignItems: 'center',
-                      padding: '0 16px', background: 'transparent'
-                    }} 
+                    style={{ width: '100%', height: '40px', border: 'none', display: 'flex', alignItems: 'center', padding: '0 16px', background: 'transparent' }} 
                   />
                 </div>
               </ConfigProvider>
@@ -232,11 +254,12 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
         </div>
       </div>
 
+      {/* 4. 二次確認彈窗 */}
       <ConfirmModal 
         open={!!deleteTarget} title="移除帳款類型？" 
         content={`移除後，原本關聯「${deleteTarget?.name}」的專案將失去標籤，且此操作無法復原。確定要移除嗎？`} 
         onCancel={() => setDeleteTarget(null)} 
-        onConfirm={async () => { await supabase.from('categories').delete().eq('id', deleteTarget.id); setDeleteTarget(null); fetchTypes(); }} 
+        onConfirm={executeDelete} 
       />
     </div>
   );
