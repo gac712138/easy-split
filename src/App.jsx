@@ -38,6 +38,7 @@ function App() {
   const [projects, setProjects] = useState([]);
   const [personnel, setPersonnel] = useState([]); 
   const [isDataLoading, setIsDataLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState('EasySplit');
   
   /* --- 狀態：分頁邏輯 --- */
   const [projectPage, setProjectPage] = useState(0);
@@ -107,6 +108,33 @@ function App() {
   const loadMoreProjects = () => {
     if (!projectsHasMore || isProjectFetchingMore) return;
     refreshGlobalData(user?.id, false);
+  };
+
+  const handleGoogleLogin = async () => {
+    // 1. 先開啟全域讀取動畫，增加流暢體感
+    setLoadingText('正在導向 Google...');
+    setIsDataLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          // 登入成功後導回目前的網域 (Vercel 或 Localhost)
+          redirectTo: window.location.origin, 
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (error) throw error;
+      
+      // 注意：signInWithOAuth 會導致頁面跳轉，所以這之後的代碼不一定會執行
+    } catch (err) {
+      setIsDataLoading(false);
+      message.error('Google 登入啟動失敗: ' + err.message);
+    }
   };
 
   /* --- 初始化與邀請碼邏輯 (不省略任何內容) --- */
@@ -191,7 +219,14 @@ function App() {
     init();
   }, [user, refreshGlobalData, checkCategoriesStatus]);
 
-  if (!user) return <AuthView />;
+  if (!user) {
+    return (
+      <>
+        {isDataLoading && <LoadingScreen text={loadingText} />}
+        <AuthView onGoogleLogin={handleGoogleLogin} />
+      </>
+    );
+  }
 
   return (
     <div className="app-main-layout">
@@ -283,6 +318,9 @@ function App() {
       
       <SetupProfileModal isOpen={isSetupModalOpen} user={user} onComplete={() => setIsSetupModalOpen(false)} />
     </div>
+
+
+
   );
 }
 
