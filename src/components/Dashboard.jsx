@@ -20,7 +20,8 @@ const Dashboard = ({
   onRefresh,
   onLoadMore,
   hasMore,
-  isFetchingMore
+  isFetchingMore,
+  showBadge
 }) => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -61,9 +62,20 @@ const Dashboard = ({
         }}
       />
 
-      <header className="navbar" style={{ flexShrink: 0 }}>
-        <button onClick={onOpenMenu} className="hamburger-btn">
+<header className="navbar" style={{ flexShrink: 0 }}>
+        <button onClick={onOpenMenu} className="hamburger-btn" style={{ position: 'relative' }}>
           <Menu size={24} color="var(--color-text-main)"/>
+          
+          {/* ★ 修正：現在 showBadge 已經定義，可以正常顯示紅點了 */}
+          {showBadge && (
+            <span style={{ 
+              position: 'absolute', top: '8px', right: '8px',
+              width: '10px', height: '10px', 
+              background: '#ff6b6b', borderRadius: '50%',
+              border: '2px solid var(--color-bg-main)',
+              boxShadow: '0 0 8px rgba(255, 107, 107, 0.5)'
+            }} />
+          )}
         </button>
         <span className="nav-brand">EasySplit</span>
         <div style={{ width: 44 }}></div>

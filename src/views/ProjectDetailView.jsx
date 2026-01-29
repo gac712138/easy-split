@@ -221,7 +221,7 @@ const ProjectDetailView = ({
         />
       )}
 
-      <AlertModal isOpen={isCategoryWarningOpen} title="專案尚未設定款項類型" content={isOwner ? "請至選單->系統設定->帳務類型管理" : "請通知專案擁有者新增帳務類型管理"} onConfirm={() => setIsCategoryWarningOpen(false)} okText="我知道了" />
+      <AlertModal isOpen={isCategoryWarningOpen} title="專案尚未設定帳款類型" content={isOwner ? "請至選單->系統設定->帳款類型管理" : "請通知專案擁有者設定 【帳款類型】"} onConfirm={() => setIsCategoryWarningOpen(false)} okText="我知道了" />
       <ProjectPersonnelModal isOpen={isPersonnelModalOpen} onClose={() => setIsPersonnelModalOpen(false)} project={project} user={user} onRefresh={refreshPersonnelOnly} />
       <ConfirmModal open={isStartConfirmOpen} title="確定開始結算？" onConfirm={executeStartSettlement} content="進入結算模式後..." onCancel={() => setIsStartConfirmOpen(false)} loading={isSettlementLoading} />
       <ConfirmModal open={isCancelConfirmOpen} title="取消結算並回退？" onConfirm={executeCancelSettlement} content="這將會清空目前的勾選進度..." onCancel={() => setIsCancelConfirmOpen(false)} loading={isSettlementLoading} />
