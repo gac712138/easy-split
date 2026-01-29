@@ -181,17 +181,27 @@ const ProjectDetailView = ({
       />
       
       <main className="band-container" style={{ flex: 1, overflowY: 'auto', paddingBottom: '40px' }}>
-        {currentStatus === 'active' && (
-          <DebtOverviewCard calculatedSettlements={calculatedSettlements} isOwner={isOwner} onStartSettlement={() => setIsStartConfirmOpen(true)} getName={getName} />
-        )}
-        {(currentStatus === 'settling' || currentStatus === 'archived') && (
-          <SettlementList project={{...project, status: currentStatus}} settlements={settlements} isOwner={isOwner} onItemClick={handleItemClick} onCancel={() => setIsCancelConfirmOpen(true)} onFinish={() => setIsArchiveConfirmOpen(true)} getName={getName} />
-        )}
-        <TransactionList transactions={transactions} loading={loading} onEditTransaction={(t) => { setEditingTransaction(t); setIsAddModalOpen(true); }} projectStatus={currentStatus} getName={getName} />
-        {!loading && transactions.length > 0 && (
-           <ScrollObserver onIntersect={handleLoadMore} hasMore={hasMore} loading={isFetchingMore} />
-        )}
-      </main>
+  {currentStatus === 'active' && (
+    <DebtOverviewCard calculatedSettlements={calculatedSettlements} isOwner={isOwner} onStartSettlement={() => setIsStartConfirmOpen(true)} getName={getName} />
+  )}
+  {(currentStatus === 'settling' || currentStatus === 'archived') && (
+    <SettlementList project={{...project, status: currentStatus}} settlements={settlements} isOwner={isOwner} onItemClick={handleItemClick} onCancel={() => setIsCancelConfirmOpen(true)} onFinish={() => setIsArchiveConfirmOpen(true)} getName={getName} />
+  )}
+  
+  {/* ★ 關鍵：這裡必須傳入 categories={localCategories} 否則子元件抓不到顏色 */}
+  <TransactionList 
+    transactions={transactions} 
+    loading={loading} 
+    onEditTransaction={(t) => { setEditingTransaction(t); setIsAddModalOpen(true); }} 
+    projectStatus={currentStatus} 
+    getName={getName}
+    categories={localCategories} 
+  />
+  
+  {!loading && transactions.length > 0 && (
+     <ScrollObserver onIntersect={handleLoadMore} hasMore={hasMore} loading={isFetchingMore} />
+  )}
+</main>
 
       {/* ★ 記帳視窗：數據直連版 */}
       {project?.id && (
@@ -211,7 +221,7 @@ const ProjectDetailView = ({
         />
       )}
 
-      <AlertModal isOpen={isCategoryWarningOpen} title="尚未設定款項類型" content={isOwner ? "目前專案尚未設定任何款項類型..." : "此專案尚未設定款項類型..."} onConfirm={() => setIsCategoryWarningOpen(false)} okText="我知道了" />
+      <AlertModal isOpen={isCategoryWarningOpen} title="專案尚未設定款項類型" content={isOwner ? "請至選單->系統設定->帳務類型管理" : "請通知專案擁有者新增帳務類型管理"} onConfirm={() => setIsCategoryWarningOpen(false)} okText="我知道了" />
       <ProjectPersonnelModal isOpen={isPersonnelModalOpen} onClose={() => setIsPersonnelModalOpen(false)} project={project} user={user} onRefresh={refreshPersonnelOnly} />
       <ConfirmModal open={isStartConfirmOpen} title="確定開始結算？" onConfirm={executeStartSettlement} content="進入結算模式後..." onCancel={() => setIsStartConfirmOpen(false)} loading={isSettlementLoading} />
       <ConfirmModal open={isCancelConfirmOpen} title="取消結算並回退？" onConfirm={executeCancelSettlement} content="這將會清空目前的勾選進度..." onCancel={() => setIsCancelConfirmOpen(false)} loading={isSettlementLoading} />

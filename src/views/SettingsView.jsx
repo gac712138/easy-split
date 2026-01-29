@@ -82,7 +82,7 @@ const SettingsView = ({ onOpenMenu, user, showBadge }) => {
             {/* 活動類型管理：僅在此項目套用紅點邏輯 */}
             <SettingItem 
               icon={Tags} 
-              label="活動類型管理" 
+              label="帳款類型管理" 
               onClick={() => setSubView('types')} 
               showBadge={showBadge} 
             />

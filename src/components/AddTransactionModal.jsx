@@ -192,7 +192,7 @@ const AddTransactionModal = ({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* 下拉選單改用 Props 傳入的 categories */}
-              <SelectionLayer label="活動類型" value={getCategoryName(formData.category_id)} icon={<TagIcon size={14}/>} isOpen={activeMenu === 'cat'} onClick={() => setActiveMenu(activeMenu === 'cat' ? null : 'cat')}>
+              <SelectionLayer label="帳款類型" value={getCategoryName(formData.category_id)} icon={<TagIcon size={14}/>} isOpen={activeMenu === 'cat'} onClick={() => setActiveMenu(activeMenu === 'cat' ? null : 'cat')}>
                 {categories.map(c => (
                   <div key={c.id} className={`selection-item ${formData.category_id === c.id ? 'active' : ''}`} onClick={() => { setFormData({...formData, category_id: c.id}); setActiveMenu(null); }}>
                     {c.name} {formData.category_id === c.id && <Check size={16} />}

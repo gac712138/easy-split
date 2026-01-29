@@ -112,7 +112,7 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
     try {
       if (editingItem) { await supabase.from('categories').update(payload).eq('id', editingItem.id); }
       else { await supabase.from('categories').insert([{ ...payload, sort_order: items.length }]); }
-      message.success('已儲存活動類型'); setIsSheetOpen(false); fetchTypes(); if (onRefresh) onRefresh();
+      message.success('已儲存帳款類型'); setIsSheetOpen(false); fetchTypes(); if (onRefresh) onRefresh();
     } catch (err) { message.error('儲存失敗'); } finally { setLoading(false); }
   };
 
@@ -135,7 +135,7 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
             position: 'absolute', left: '50%', transform: 'translateX(-50%)',
             whiteSpace: 'nowrap', fontSize: '18px', fontWeight: '900', color: '#ffffff', pointerEvents: 'none'
         }}>
-            活動類型管理
+            帳款類型管理
         </span>
         <button 
   onClick={() => openSheet()} 
@@ -233,7 +233,7 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
       </div>
 
       <ConfirmModal 
-        open={!!deleteTarget} title="移除活動類型？" 
+        open={!!deleteTarget} title="移除帳款類型？" 
         content={`移除後，原本關聯「${deleteTarget?.name}」的專案將失去標籤，且此操作無法復原。確定要移除嗎？`} 
         onCancel={() => setDeleteTarget(null)} 
         onConfirm={async () => { await supabase.from('categories').delete().eq('id', deleteTarget.id); setDeleteTarget(null); fetchTypes(); }} 
