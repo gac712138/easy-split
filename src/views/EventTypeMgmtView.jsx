@@ -137,9 +137,30 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
         }}>
             活動類型管理
         </span>
-        <button onClick={() => openSheet()} className="navbar-add-btn" style={{ zIndex: 10 }}>
-          <Plus size={24} color="#ffffff" />
-        </button>
+        <button 
+  onClick={() => openSheet()} 
+  className="navbar-add-btn" 
+  style={{ 
+    zIndex: 10,
+    display: 'flex',           // ★ 修正 1：使用 Flex 佈局
+    alignItems: 'center',      // ★ 修正 2：垂直居中
+    justifyContent: 'center',  // ★ 修正 3：水平居中
+    gap: '6px',                // ★ 修正 4：圖示與文字的間距
+    padding: '0 18px',         // ★ 修正 5：左右撐開空間
+    width: 'auto',             // ★ 修正 6：寬度改為自動，配合內容
+    minWidth: '110px',         // ★ 修正 7：設定最小寬度避免太短
+    height: '42px',            // ★ 修正 8：固定高度維持鋼鐵紮實感
+    borderRadius: '50px',      // ★ 修正 9：Pill 形狀按鈕
+    backgroundColor: 'var(--color-primary)', // 使用你的主題綠色
+    border: 'none',
+    boxShadow: '0 4px 15px rgba(0,0,0,0.3)'   // 增加層次感
+  }}
+>
+  {/* 文字放前面或後面皆可，通常 icon 放左邊或右邊 */}
+  
+  <Plus size={18} color="#ffffff" strokeWidth={3} />
+  <span style={{ fontSize: '15px', fontWeight: '800', color: '#fff' }}>新增</span>
+</button>
       </header>
 
       {/* 2. 內容容器：地基寬度保護 */}

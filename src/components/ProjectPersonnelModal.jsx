@@ -269,9 +269,24 @@ const handleCopyInvite = () => {
                       <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                         <User size={20} color="#888" />
                         {p.linked_user_id && (
-                          <div style={{ position: 'absolute', bottom: -4, right: -4, background: 'var(--color-primary)', borderRadius: '50%', padding: '2px', border: '2px solid #1e1e1e' }}>
-                            <LinkIcon size={10} color="#fff" />
-                          </div>
+                          <div style={{ 
+  position: 'absolute', 
+  bottom: -4, 
+  right: -4, 
+  width: '18px',         // ★ 修正 1：設定固定寬度
+  height: '18px',        // ★ 修正 2：設定固定高度
+  background: 'var(--color-primary)', 
+  borderRadius: '50%', 
+  border: '2px solid #1e1e1e',
+  display: 'flex',       // ★ 修正 3：使用 flex 確保垂直水平居中
+  alignItems: 'center', 
+  justifyContent: 'center',
+  flexShrink: 0,         // ★ 修正 4：強制防止在 Flex 佈局中被擠壓變形
+  zIndex: 1
+}}>
+  {/* 調整 LinkIcon 粗細使其更清晰 */}
+  <LinkIcon size={10} color="#fff" strokeWidth={3} />
+</div>
                         )}
                       </div>
 
