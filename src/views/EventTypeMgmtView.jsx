@@ -234,18 +234,47 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
             </div>
 
             <div>
-              <label style={{ display: 'block', color: 'var(--color-text-sub)', fontSize: '13px', fontWeight: '800', marginBottom: '8px', paddingLeft: '4px' }}>標籤色彩</label>
-              <ConfigProvider theme={{ token: { zIndexPopupBase: 10005 } }}>
-                <div className="band-input-pill" style={{ display: 'flex', alignItems: 'center', padding: '0 4px', overflow: 'hidden' }}>
-                  <ColorPicker 
-                    showText value={formData.primary_color}
-                    onChange={(color) => setFormData({...formData, primary_color: color})}
-                    getPopupContainer={(trigger) => trigger.parentElement} 
-                    style={{ width: '100%', height: '40px', border: 'none', display: 'flex', alignItems: 'center', padding: '0 16px', background: 'transparent' }} 
-                  />
-                </div>
-              </ConfigProvider>
-            </div>
+  <label style={{ 
+    display: 'block', 
+    color: 'var(--color-text-sub)', 
+    fontSize: '13px', 
+    fontWeight: '800', 
+    marginBottom: '12px', // 稍微增加間距讓視覺更開闊
+    paddingLeft: '4px' 
+  }}>
+    標籤色彩
+  </label>
+  
+  <ConfigProvider theme={{ 
+    token: { 
+      zIndexPopupBase: 10005,
+      colorText: '#ffffff' // 確保彈出視窗文字也是白色
+    } 
+  }}>
+    {/* ★ 核心修正：移除外部 band-input-pill 類名與背景框 */}
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+      <ColorPicker 
+        showText 
+        value={formData.primary_color}
+        onChange={(color) => setFormData({...formData, primary_color: color})}
+        getPopupContainer={(trigger) => trigger.parentElement} 
+        style={{ 
+          width: '100%',           // 撐滿整個畫面寬度
+          height: '52px',          // 紮實的高度感
+          background: '#1a1a1a',   // 深空地基色
+          border: '1px solid #333', 
+          borderRadius: '50px',    // 鋼鐵膠囊造型
+          padding: '0 24px',
+          color: '#ffffff',        // ★ 關鍵：黑色文字轉白色
+          display: 'flex',
+          alignItems: 'center',    // ★ 內部預覽色塊與 Hex 上下置中
+          justifyContent: 'center', // 內容整體左右置中
+          boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+        }} 
+      />
+    </div>
+  </ConfigProvider>
+</div>
 
             <button type="submit" className="band-btn-main" style={{ marginTop: '12px' }} disabled={loading}>
               {loading ? '正在儲存...' : '確認儲存類型'}
