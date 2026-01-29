@@ -335,7 +335,7 @@ const handleCopyInvite = () => {
             {!isReadOnly && (
               <div style={{ display: 'flex', gap: '12px' }}>
                 <input type="text" placeholder="輸入新成員名稱" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ flex: 1, padding: '8px 14px', borderRadius: '12px',fontSize: '18px', background: '#222', border: '1px solid #444', color: '#fff', outline: 'none' }} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} />
-                <button onClick={handleAdd} disabled={!newName.trim()} style={{ padding: '0px 20px 0px 15px', borderRadius: '12px', background: newName.trim() ? 'var(--color-primary)' : '#444', border: 'none', color: '#fff',fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Plus size={20} /> 新增</button>
+                <button onClick={handleAdd} disabled={!newName.trim()} style={{ padding: '0px 10px 0px 7px', borderRadius: '12px', background: newName.trim() ? 'var(--color-primary)' : '#444', border: 'none', color: '#fff',fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Plus size={20} /> 新增</button>
               </div>
             )}
           </div>
