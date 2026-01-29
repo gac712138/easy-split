@@ -223,9 +223,9 @@ const ProjectDetailView = ({
 
       <AlertModal isOpen={isCategoryWarningOpen} title="專案尚未設定帳款類型" content={isOwner ? "請至選單->系統設定->帳款類型管理" : "請通知專案擁有者設定 【帳款類型】"} onConfirm={() => setIsCategoryWarningOpen(false)} okText="我知道了" />
       <ProjectPersonnelModal isOpen={isPersonnelModalOpen} onClose={() => setIsPersonnelModalOpen(false)} project={project} user={user} onRefresh={refreshPersonnelOnly} />
-      <ConfirmModal open={isStartConfirmOpen} title="確定開始結算？" onConfirm={executeStartSettlement} content="進入結算模式後..." onCancel={() => setIsStartConfirmOpen(false)} loading={isSettlementLoading} />
-      <ConfirmModal open={isCancelConfirmOpen} title="取消結算並回退？" onConfirm={executeCancelSettlement} content="這將會清空目前的勾選進度..." onCancel={() => setIsCancelConfirmOpen(false)} loading={isSettlementLoading} />
-      <ConfirmModal open={isArchiveConfirmOpen} title="確認完成並歸檔？" onConfirm={executeArchiveProject} content="歸檔後專案將..." onCancel={() => setIsArchiveConfirmOpen(false)} loading={isSettlementLoading} okText="確認歸檔" />
+      <ConfirmModal open={isStartConfirmOpen} title="確定開始結算？" onConfirm={executeStartSettlement} content="進入結算模式後，將無法新增帳款以及人員" onCancel={() => setIsStartConfirmOpen(false)} loading={isSettlementLoading} />
+      <ConfirmModal open={isCancelConfirmOpen} title="取消結算並回退？" onConfirm={executeCancelSettlement} content="這將會清空目前的勾選進度" onCancel={() => setIsCancelConfirmOpen(false)} loading={isSettlementLoading} />
+      <ConfirmModal open={isArchiveConfirmOpen} title="確認完成並歸檔？" onConfirm={executeArchiveProject} content="歸檔後專案將封存" onCancel={() => setIsArchiveConfirmOpen(false)} loading={isSettlementLoading} okText="確認歸檔" />
       <CheckSettlementModal isOpen={isCheckModalOpen} onClose={() => setIsCheckModalOpen(false)} item={checkingItem} onRefresh={async () => { const { data } = await supabase.from('project_settlements').select('*').eq('project_id', project.id).order('is_cleared', { ascending: true }); if(data) setSettlements(data); }} getName={getName} />
     </div>
   );
