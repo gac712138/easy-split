@@ -9,38 +9,52 @@ const SetupProfileModal = ({ isOpen, user, onComplete }) => {
   // 表單狀態
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState(''); // ★ 新增：確認密碼
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // ★ 關鍵判斷：檢查使用者是否透過 Google 登入
+  // (Google 登入的 app_metadata.provider 會是 'google')
+  const isGoogleLogin = user?.app_metadata?.provider === 'google';
 
   const handleSubmit = async () => {
-    // 1. 基本檢查
+    // 1. 驗證暱稱 (所有人都要)
     if (!name.trim()) {
       message.error('請輸入您的暱稱');
       return;
     }
-    if (password.length < 6) {
-      message.error('密碼長度需至少 6 碼');
-      return;
-    }
 
-    // ★ 2. 新增：檢查兩次密碼是否一致
-    if (password !== confirmPassword) {
-      message.error('兩次密碼輸入不一致，請重新確認');
-      return;
+    // ★ 2. 驗證密碼 (只有「非」Google 登入才需要檢查)
+    if (!isGoogleLogin) {
+      if (password.length < 6) {
+        message.error('密碼長度需至少 6 碼');
+        return;
+      }
+      if (password !== confirmPassword) {
+        message.error('兩次密碼輸入不一致');
+        return;
+      }
     }
 
     setLoading(true);
     try {
-      // 3. 更新資料
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-        data: { name: name }
-      });
+      // 3. 準備要更新的資料
+      const updatePayload = {
+        data: { name: name } // 更新 metadata 中的 name
+      };
+
+      // ★ 只有 Email 用戶才更新密碼
+      if (!isGoogleLogin) {
+        updatePayload.password = password;
+      }
+
+      const { error } = await supabase.auth.updateUser(updatePayload);
 
       if (error) throw error;
 
-      message.success('資料設定完成！歡迎加入');
-      onComplete(); 
+      message.success('設定完成！歡迎加入');
+      onComplete(); // 關閉視窗
+      // 這裡不一定要 reload，視你的 App 設計而定，reload 可以確保所有狀態重抓
       window.location.reload(); 
+
     } catch (err) {
       console.error(err);
       message.error('設定失敗：' + err.message);
@@ -53,20 +67,20 @@ const SetupProfileModal = ({ isOpen, user, onComplete }) => {
 
   return (
     <div className="drawer-overlay active" style={{ zIndex: 9999 }}>
-      <div className="drawer-container" style={{ padding: '32px 24px', maxWidth: '400px', margin: 'auto', borderRadius: '24px', height: 'auto' }}>
+      <div className="drawer-container" style={{ padding: '32px 24px', maxWidth: '400px', margin: 'auto', borderRadius: '24px', height: 'auto', background: '#1a1a1a' }}>
         
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#fff', marginBottom: '8px' }}>
             歡迎加入 EasySplit 👋
           </h2>
           <p style={{ color: '#888', fontSize: '14px' }}>
-            初次見面！請設定您的暱稱與登入密碼，以便日後使用。
+            初次見面！請設定您的暱稱{ !isGoogleLogin && '與登入密碼' }，以便日後使用。
           </p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           
-          {/* 1. 姓名欄位 */}
+          {/* 1. 姓名欄位 (所有人都要填) */}
           <div>
             <label style={{ display: 'block', color: '#888', fontSize: '13px', marginBottom: '6px' }}>您的暱稱</label>
             <div style={{ position: 'relative' }}>
@@ -81,51 +95,47 @@ const SetupProfileModal = ({ isOpen, user, onComplete }) => {
             </div>
           </div>
 
-          {/* 2. 設定密碼欄位 */}
-          <div>
-            <label style={{ display: 'block', color: '#888', fontSize: '13px', marginBottom: '6px' }}>設定登入密碼</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={18} color="#666" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input 
-                type="password" 
-                placeholder="至少 6 碼"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '12px', background: '#222', border: '1px solid #444', color: '#fff', outline: 'none' }}
-              />
-            </div>
-          </div>
+          {/* ★ 2. 只有「非 Google 用戶」才顯示密碼欄位 */}
+          {!isGoogleLogin && (
+            <>
+              <div>
+                <label style={{ display: 'block', color: '#888', fontSize: '13px', marginBottom: '6px' }}>設定登入密碼</label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={18} color="#666" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input 
+                    type="password" 
+                    placeholder="至少 6 碼"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '12px', background: '#222', border: '1px solid #444', color: '#fff', outline: 'none' }}
+                  />
+                </div>
+              </div>
 
-          {/* ★ 3. 確認密碼欄位 */}
-          <div>
-            <label style={{ display: 'block', color: '#888', fontSize: '13px', marginBottom: '6px' }}>再次確認密碼</label>
-            <div style={{ position: 'relative' }}>
-              {/* 若密碼一致且不為空，顯示綠色勾勾，否則顯示鎖頭 */}
-              {password && confirmPassword && password === confirmPassword ? (
-                <CheckCircle size={18} color="var(--color-primary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-              ) : (
-                <Lock size={18} color="#666" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-              )}
-              
-              <input 
-                type="password" 
-                placeholder="請再次輸入密碼"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                style={{ 
-                  width: '100%', padding: '12px 12px 12px 40px', borderRadius: '12px', 
-                  background: '#222', 
-                  // 加入一點互動：如果兩個密碼不同且已經開始輸入，框線變紅
-                  border: confirmPassword && password !== confirmPassword ? '1px solid #ff6b6b' : '1px solid #444', 
-                  color: '#fff', outline: 'none', transition: '0.2s'
-                }}
-              />
-            </div>
-            {/* 錯誤提示文字 (Optional) */}
-            {confirmPassword && password !== confirmPassword && (
-              <p style={{ color: '#ff6b6b', fontSize: '12px', marginTop: '4px', paddingLeft: '4px' }}>密碼不一致</p>
-            )}
-          </div>
+              <div>
+                <label style={{ display: 'block', color: '#888', fontSize: '13px', marginBottom: '6px' }}>再次確認密碼</label>
+                <div style={{ position: 'relative' }}>
+                   {password && confirmPassword && password === confirmPassword ? (
+                    <CheckCircle size={18} color="var(--color-primary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  ) : (
+                    <Lock size={18} color="#666" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  )}
+                  <input 
+                    type="password" 
+                    placeholder="請再次輸入密碼"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    style={{ 
+                      width: '100%', padding: '12px 12px 12px 40px', borderRadius: '12px', 
+                      background: '#222', 
+                      border: confirmPassword && password !== confirmPassword ? '1px solid #ff6b6b' : '1px solid #444', 
+                      color: '#fff', outline: 'none', transition: '0.2s'
+                    }}
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           <button 
             onClick={handleSubmit}

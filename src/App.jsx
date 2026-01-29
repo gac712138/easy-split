@@ -2,24 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabaseClient';
 import { message } from 'antd';
-import { Menu } from 'lucide-react'; 
-
-// 視圖組件
+// 視圖與組件 import 維持不變...
 import AuthView from './views/AuthView';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import SettingsView from './views/SettingsView'; 
 import ProjectDetailView from './views/ProjectDetailView';
-
-// 彈窗組件
 import CreateProjectModal from './components/CreateProjectModal';
 import EditProjectModal from './components/EditProjectModal';
 import AddTransactionModal from './components/AddTransactionModal'; 
 import ConfirmModal from './components/ConfirmModal';
 import JoinProjectModal from './components/JoinProjectModal'; 
 import SetupProfileModal from './components/SetupProfileModal'; 
-
-// 動畫組件
 import LoadingScreen from './components/LoadingScreen';
 import './App.css';
 
@@ -28,27 +22,24 @@ const PROJECT_PAGE_SIZE = 10;
 function App() {
   const { user, signOut } = useAuth();
 
-  /* --- 狀態：基礎導覽 --- */
+  /* --- 狀態定義 --- */
   const [currentView, setCurrentView] = useState('projects'); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);        
   const [selectedProject, setSelectedProject] = useState(null);
   const [editProject, setEditProject] = useState(null);
   
-  /* --- 狀態：資料清單 --- */
   const [projects, setProjects] = useState([]);
   const [personnel, setPersonnel] = useState([]); 
   const [isDataLoading, setIsDataLoading] = useState(false);
-  const [loadingText, setLoadingText] = useState('EasySplit');
+  const [loadingText, setLoadingText] = useState(''); // 修正預設值為空
   
-  /* --- 狀態：分頁邏輯 --- */
   const [projectPage, setProjectPage] = useState(0);
   const [projectsHasMore, setProjectsHasMore] = useState(true);
   const [isProjectFetchingMore, setIsProjectFetchingMore] = useState(false);
 
-  /* --- ★ 新增狀態：紅點即時偵測 --- */
   const [isTypesEmpty, setIsTypesEmpty] = useState(false);
 
-  /* --- 狀態：彈窗控制 (Modals) --- */
+  /* --- Modal 狀態 --- */
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
@@ -57,13 +48,26 @@ function App() {
   const [targetJoinProject, setTargetJoinProject] = useState(null); 
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
 
-  /* --- 狀態：更新觸發器 --- */
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // 定義全域紅點顯示邏輯
   const showGlobalBadge = isTypesEmpty;
 
-  /* --- ★ 關鍵優化：建立專門檢查分類狀態的函式 (供跨組件即時呼叫) --- */
+  /* --- 1. 純淨的 API 抓取函式 (不依賴 State) --- */
+  const fetchProjectsApi = useCallback(async (userId, pageIndex) => {
+    const from = pageIndex * PROJECT_PAGE_SIZE;
+    const to = from + PROJECT_PAGE_SIZE - 1;
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, to);
+      
+    if (error) throw error;
+    return data;
+  }, []);
+
+  /* --- 2. 檢查紅點狀態 --- */
   const checkCategoriesStatus = useCallback(async () => {
     if (!user?.id) return;
     const { count } = await supabase
@@ -74,70 +78,68 @@ function App() {
     setIsTypesEmpty(count === 0);
   }, [user?.id]);
 
-  /* --- 資料抓取邏輯 (支援分頁) --- */
-  const refreshGlobalData = useCallback(async (userId, reset = false) => {
+  /* --- 3. 整合後的資料更新邏輯 (取代原本的 refreshGlobalData) --- */
+  // 這個函式負責更新 State，它依賴 fetchProjectsApi，但不依賴 projectPage
+  const fetchAndSetProjects = useCallback(async (userId, page, isReset) => {
     if (!userId) return;
-    if (reset) setIsDataLoading(true);
 
     try {
-      const currentPage = reset ? 0 : projectPage + 1;
-      const from = currentPage * PROJECT_PAGE_SIZE;
-      const to = from + PROJECT_PAGE_SIZE - 1;
+      if (isReset) {
+        setIsDataLoading(true);
+      } else {
+        setIsProjectFetchingMore(true);
+      }
 
-      // 抓取專案清單
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (error) throw error;
+      // ★ 呼叫上面定義好的 API 函式
+      const data = await fetchProjectsApi(userId, page);
 
       if (data) {
-        setProjects(reset ? data : prev => [...prev, ...data]);
+        setProjects(prev => isReset ? data : [...prev, ...data]);
         setProjectsHasMore(data.length === PROJECT_PAGE_SIZE);
-        if (reset) setProjectPage(0); else setProjectPage(currentPage);
+        setProjectPage(page); // 在這裡才更新頁碼 State
       }
     } catch (err) {
+      console.error(err);
       message.error("專案同步失敗");
     } finally {
       setIsDataLoading(false); 
+      setIsProjectFetchingMore(false);
     }
-  }, [projectPage]);
+  }, [fetchProjectsApi]);
 
-  const loadMoreProjects = () => {
-    if (!projectsHasMore || isProjectFetchingMore) return;
-    refreshGlobalData(user?.id, false);
+  /* --- UI 事件處理 --- */
+  // 重新整理 (重置回第 0 頁)
+  const handleRefresh = () => {
+    if (user?.id) fetchAndSetProjects(user.id, 0, true);
   };
 
+  // 載入更多 (載入下一頁)
+  const handleLoadMore = () => {
+    if (!projectsHasMore || isProjectFetchingMore || !user?.id) return;
+    const nextPage = projectPage + 1;
+    fetchAndSetProjects(user.id, nextPage, false);
+  };
+
+  /* --- Google 登入邏輯 --- */
   const handleGoogleLogin = async () => {
-    // 1. 先開啟全域讀取動畫，增加流暢體感
     setLoadingText('正在導向 Google...');
     setIsDataLoading(true);
-
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // 登入成功後導回目前的網域 (Vercel 或 Localhost)
           redirectTo: window.location.origin, 
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'select_account',
-          },
+          queryParams: { access_type: 'offline', prompt: 'select_account' },
         },
       });
-
       if (error) throw error;
-      
-      // 注意：signInWithOAuth 會導致頁面跳轉，所以這之後的代碼不一定會執行
     } catch (err) {
       setIsDataLoading(false);
       message.error('Google 登入啟動失敗: ' + err.message);
     }
   };
 
-  /* --- 初始化與邀請碼邏輯 (不省略任何內容) --- */
+  /* --- 初始化 useEffect --- */
   useEffect(() => {
     if (!user) {
       const root = document.documentElement.style;
@@ -145,13 +147,14 @@ function App() {
       return;
     }
 
-    // 重置初始狀態
+    // 重置狀態
     setIsMenuOpen(false);       
     setCurrentView('projects'); 
     setSelectedProject(null);   
 
-    // 檢查 Profile 設定
-    if (user && !user.user_metadata?.name) {
+    // ★ 關鍵：檢查是否需要彈出設定視窗 (初次登入/無暱稱者)
+    // 邏輯：如果有 user，但 user_metadata 內沒有 name，就開啟設定
+    if (!user.user_metadata || !user.user_metadata.name) {
       setIsSetupModalOpen(true);
     }
 
@@ -164,13 +167,13 @@ function App() {
         });
       }
 
-      // ★ 2. 新增：初始化時檢查紅點狀態
+      // 2. 初始化檢查紅點
       await checkCategoriesStatus();
 
-      // 3. 同步專案資料
-      await refreshGlobalData(user.id, true);
+      // ★ 3. 呼叫新的資料函式 (初始化：第 0 頁，Reset = true)
+      await fetchAndSetProjects(user.id, 0, true);
 
-      // 4. 邀請碼邏輯 (完整復刻)
+      // 4. 邀請碼邏輯
       const params = new URLSearchParams(window.location.search);
       const codeFromUrl = params.get('code');
       const codeFromStorage = localStorage.getItem('pending_invite_code');
@@ -178,46 +181,31 @@ function App() {
 
       if (codeToProcess) {
         if (codeFromUrl) localStorage.setItem('pending_invite_code', codeFromUrl);
-
         try {
-          // A. 透過 RPC 取得專案預覽
-          const { data: projects, error } = await supabase.rpc('get_project_preview_by_code', {
-            p_invite_code: codeToProcess
-          });
-
-          if (error || !projects || projects.length === 0) {
-            console.error('邀請碼無效');
-            return;
-          }
+          const { data: projects, error } = await supabase.rpc('get_project_preview_by_code', { p_invite_code: codeToProcess });
+          if (error || !projects || projects.length === 0) return;
 
           const project = projects[0];
-
-          // B. 檢查目前登入的使用者是否已經是成員
-          const { data: membership } = await supabase
-            .from('project_members')
-            .select('id')
-            .eq('project_id', project.id)
-            .eq('user_id', user.id)
-            .maybeSingle();
+          const { data: membership } = await supabase.from('project_members').select('id').eq('project_id', project.id).eq('user_id', user.id).maybeSingle();
 
           if (membership) {
-            setSelectedProject(project); // 已是成員，直接跳轉
+            setSelectedProject(project);
           } else {
-            setTargetJoinProject(project); // 非成員，開啟認領
+            setTargetJoinProject(project);
             setIsJoinModalOpen(true);
           }
         } catch (err) {
-          console.error('處理邀請失敗:', err);
+          console.error(err);
         } finally {
-          // C. 清理 URL 與 Storage
           localStorage.removeItem('pending_invite_code');
-          const newUrl = window.location.pathname;
-          window.history.replaceState({}, '', newUrl);
+          window.history.replaceState({}, '', window.location.pathname);
         }
       }
     };
     init();
-  }, [user, refreshGlobalData, checkCategoriesStatus]);
+    
+    // ★ 關鍵：依賴列表移除 projectPage，加入 fetchAndSetProjects
+  }, [user, fetchAndSetProjects, checkCategoriesStatus]);
 
   if (!user) {
     return (
@@ -230,12 +218,11 @@ function App() {
 
   return (
     <div className="app-main-layout">
-      {isDataLoading && <LoadingScreen text="EasySplit" />}
+      {/* 修正：使用動態 loadingText，若無則顯示 EasySplit */}
+      {isDataLoading && <LoadingScreen text={loadingText || "EasySplit"} />}
 
-      {/* 側邊欄遮罩 */}
       <div className={`sidebar-overlay ${isMenuOpen ? 'active' : ''}`} onClick={() => setIsMenuOpen(false)} />
       
-      {/* 側邊欄 */}
       <Sidebar 
         isOpen={isMenuOpen} 
         onClose={() => setIsMenuOpen(false)} 
@@ -262,8 +249,11 @@ function App() {
               onSelectProject={(p) => setSelectedProject(p)} 
               onEditProject={(p) => setEditProject(p)}
               showBadge={showGlobalBadge}
-              onRefresh={() => refreshGlobalData(user.id, true)}
-              onLoadMore={loadMoreProjects}
+              
+              /* ★ 修正：這裡改用新的 handler */
+              onRefresh={handleRefresh}
+              onLoadMore={handleLoadMore}
+              
               hasMore={projectsHasMore}
               isFetchingMore={isProjectFetchingMore}
             />
@@ -272,10 +262,10 @@ function App() {
               project={selectedProject} 
               onBack={() => { 
                 setSelectedProject(null); 
-                checkCategoriesStatus(); // ★ 優化：返回時刷新紅點狀態
+                checkCategoriesStatus(); 
               }} 
               personnel={personnel} 
-              onRefresh={() => refreshGlobalData(user.id, true)} 
+              onRefresh={handleRefresh} // 這裡也統一用 handleRefresh
               onAddTransaction={() => { setEditingTransaction(null); setIsAddTransactionOpen(true); }}
               onEditTransaction={(transaction) => { setEditingTransaction(transaction); setIsAddTransactionOpen(true); }}
               lastUpdated={refreshTrigger}
@@ -287,15 +277,15 @@ function App() {
             onOpenMenu={() => setIsMenuOpen(true)} 
             user={user} 
             showBadge={showGlobalBadge} 
-            onRefresh={checkCategoriesStatus} // ★ 關鍵：傳入回調，讓紅點能即時消失
+            onRefresh={checkCategoriesStatus} 
           />
         )}
       </main>
 
-      {/* --- 全量 Modals 區塊 --- */}
-      <CreateProjectModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} user={user} onRefresh={() => refreshGlobalData(user.id, true)} />
+      {/* --- Modals --- */}
+      <CreateProjectModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} user={user} onRefresh={handleRefresh} />
       
-      <EditProjectModal isOpen={!!editProject} project={editProject} user={user} personnel={personnel} onClose={() => setEditProject(null)} onRefresh={() => refreshGlobalData(user.id, true)} />
+      <EditProjectModal isOpen={!!editProject} project={editProject} user={user} personnel={personnel} onClose={() => setEditProject(null)} onRefresh={handleRefresh} />
       
       {selectedProject && (
         <AddTransactionModal 
@@ -306,21 +296,22 @@ function App() {
           user={user} 
           transaction={editingTransaction} 
           onRefresh={() => { 
-            refreshGlobalData(user.id, true); 
+            handleRefresh();
             setRefreshTrigger(prev => prev + 1); 
           }} 
         />
       )}
       
-      <JoinProjectModal isOpen={isJoinModalOpen} onClose={() => setIsJoinModalOpen(false)} project={targetJoinProject} user={user} onSuccess={(p) => { refreshGlobalData(user.id, true); setSelectedProject(p); }} />
+      <JoinProjectModal isOpen={isJoinModalOpen} onClose={() => setIsJoinModalOpen(false)} project={targetJoinProject} user={user} onSuccess={(p) => { handleRefresh(); setSelectedProject(p); }} />
       
       <ConfirmModal open={isLogoutConfirmOpen} title="確認登出系統？" content="登出後需重新登入才能繼續管理。" onConfirm={async () => { await signOut(); setIsLogoutConfirmOpen(false); }} onCancel={() => setIsLogoutConfirmOpen(false)} />
       
+      {/* ★ 這裡呼叫 SetupProfileModal
+        (請確保你的 SetupProfileModal.jsx 是我上一則回應提供的那個版本，
+         它才會正確區分 Google 登入不用填密碼) 
+      */}
       <SetupProfileModal isOpen={isSetupModalOpen} user={user} onComplete={() => setIsSetupModalOpen(false)} />
     </div>
-
-
-
   );
 }
 
