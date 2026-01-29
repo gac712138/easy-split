@@ -179,7 +179,7 @@ const EventTypeMgmtView = ({ user, onBack, onRefresh }) => {
               <div className="band-input-pill" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <Tag size={18} color="#666" />
                 <input 
-                  type="text" placeholder="例如：樂器維修" value={formData.name}
+                  type="text" placeholder="例如：吃飯、住宿、交通 等" value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   style={{ background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none' }} required 
                 />

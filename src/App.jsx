@@ -58,56 +58,37 @@ function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   /* --- 資料抓取 (支援分頁) --- */
-  const refreshGlobalData = useCallback(async (userId, reset = false) => {
-    if (!userId) return;
-    if (reset) setIsDataLoading(true);
+// App.jsx 關鍵邏輯片段
+const refreshGlobalData = useCallback(async (userId, reset = false) => {
+  if (!userId) return;
+  if (reset) setIsDataLoading(true); // ★ 啟動全屏動畫
 
-    try {
-      const currentPage = reset ? 0 : projectPage + 1;
-      if (!reset) setIsProjectFetchingMore(true);
+  try {
+    const currentPage = reset ? 0 : projectPage + 1;
+    const from = currentPage * PROJECT_PAGE_SIZE;
+    const to = from + PROJECT_PAGE_SIZE - 1;
 
-      const from = currentPage * PROJECT_PAGE_SIZE;
-      const to = from + PROJECT_PAGE_SIZE - 1;
+    // ★ 鋼鐵輕量化：首頁只抓取專案清單，不預載成員資料
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, to);
 
-      const projPromise = supabase
-        .from('projects')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, to);
+    if (error) throw error;
 
-      const persPromise = supabase.from('personnel').select('*');
-      const [projRes, persRes] = await Promise.all([projPromise, persPromise]);
-
-      if (projRes.data) {
-        const newProjects = projRes.data;
-        setProjectsHasMore(newProjects.length === PROJECT_PAGE_SIZE);
-
-        if (reset) {
-          setProjects(newProjects);
-          setProjectPage(0);
-        } else {
-          setProjects(prev => [...prev, ...newProjects]);
-          setProjectPage(currentPage);
-        }
-
-        setSelectedProject(current => {
-          if (!current) return null;
-          const freshProject = projRes.data.find(p => p.id === current.id);
-          return freshProject || current;
-        });
-      }
-
-      if (persRes.data) setPersonnel(persRes.data);
-      setRefreshTrigger(prev => prev + 1);
-
-    } catch (err) {
-      console.error(err);
-      message.error("資料同步失敗");
-    } finally {
-      setIsDataLoading(false);
-      setIsProjectFetchingMore(false);
+    if (data) {
+      setProjects(reset ? data : prev => [...prev, ...data]);
+      setProjectsHasMore(data.length === PROJECT_PAGE_SIZE);
+      if (reset) setProjectPage(0); else setProjectPage(currentPage);
     }
-  }, [projectPage]);
+  } catch (err) {
+    message.error("專案同步失敗");
+  } finally {
+    // ★ 只有在專案清單 state 更新完畢後，才結束動畫
+    setIsDataLoading(false); 
+  }
+}, [projectPage]);
 
   const loadMoreProjects = () => {
     if (!projectsHasMore || isProjectFetchingMore) return;

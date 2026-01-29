@@ -156,11 +156,37 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
     } catch (err) { message.error('更新失敗'); }
   };
 
-  const handleCopyInvite = () => {
-    if (!project?.invite_code) { message.error('無邀請碼'); return; }
-    const inviteLink = `${window.location.origin}${window.location.pathname}?code=${project.invite_code}`;
-    navigator.clipboard.writeText(inviteLink).then(() => message.success('已複製邀請連結'));
-  };
+const handleCopyInvite = () => {
+  if (!project?.invite_code || !project?.name) {
+    message.error('邀請資料不完整');
+    return;
+  }
+
+  // 1. 定義連結與格式化文字
+  const inviteLink = `${window.location.origin}${window.location.pathname}?code=${project.invite_code}`;
+  const copyText = `歡迎使用Easy Split，請點選加入 【${project.name}】\n${inviteLink}`;
+
+  // 2. 執行複製
+  if (navigator.clipboard && window.isSecureContext) {
+    // 現代瀏覽器推薦做法
+    navigator.clipboard.writeText(copyText)
+      .then(() => message.success('已複製邀請連結'))
+      .catch(() => message.error('複製失敗，請手動複製'));
+  } else {
+    // 相容性做法 (fallback)
+    const textArea = document.createElement("textarea");
+    textArea.value = copyText;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      message.success('已複製邀請與連結');
+    } catch (err) {
+      message.error('複製失敗');
+    }
+    document.body.removeChild(textArea);
+  }
+};
 
   const handleDeleteClick = async (member) => {
     if (isReadOnly) return;
