@@ -14,6 +14,59 @@ const MODE = {
   FORGOT_RESET: 'FORGOT_RESET'
 };
 
+
+// AuthView.jsx 內部的 handleSendOtp 函式
+
+const handleSendOtp = async (nextMode) => {
+  if (!email.includes('@')) { 
+    message.error('請輸入有效的 Email'); 
+    return; 
+  }
+  
+  setLoading(true);
+  setLoadingText('發送驗證碼...');
+
+  try {
+    // ★ 1. 鋼鐵防呆攔截：僅在「註冊模式」下檢查是否已存在帳號
+    if (mode === MODE.REG_EMAIL) {
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      // 如果帳戶已註冊，直接結束流程，不呼叫下方的發送 API
+      if (existingUser) {
+        message.warning('此帳戶已註冊，請直接登入');
+        setMode(MODE.LOGIN); // 自動幫使用者切換回登入模式
+        setLoading(false);
+        return; 
+      }
+    }
+
+    // ★ 2. 只有預檢通過 (或是在忘記密碼模式) 才會執行到這裡
+    const { error } = await supabase.auth.signInWithOtp({ 
+      email,
+      options: {
+        // 防止註冊時自動建立帳號（選配，視你的 Supabase 設定而定）
+        shouldCreateUser: mode === MODE.REG_EMAIL 
+      }
+    });
+
+    if (error) throw error;
+    
+    message.success('驗證碼已寄出');
+    setMode(nextMode);
+  } catch (error) { 
+    message.error('發送失敗：' + error.message); 
+  } finally { 
+    setLoading(false); 
+  }
+};
+
+
 const InputField = ({ icon: Icon, type, placeholder, value, onChange, autoFocus }) => (
   <div style={{ position: 'relative', marginBottom: '16px' }}>
     <div style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }}>
