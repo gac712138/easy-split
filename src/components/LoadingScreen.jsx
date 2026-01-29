@@ -9,80 +9,87 @@ const LoadingScreen = ({ text = "EasySplit", transparent = false }) => {
         left: 0,
         width: '100%',
         height: '100%',
-        // 根據透明度需求調整底色
-        backgroundColor: transparent ? 'rgba(0,0,0,0.85)' : 'var(--color-bg-main, #121212)',
-        zIndex: 10001, // 權重設為最高，確保蓋過所有 UI
+        // 根據 transparent 參數決定是否要全黑底，還是半透明遮罩
+        backgroundColor: transparent ? 'rgba(0,0,0,0.85)' : '#121212', 
+        zIndex: 10001, // 確保蓋過所有 UI
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         transition: 'opacity 0.3s ease',
-        backdropFilter: transparent ? 'blur(10px)' : 'none' // 局部讀取時增加毛玻璃感
+        backdropFilter: transparent ? 'blur(10px)' : 'none' // 只有透明模式才開毛玻璃，節省效能
       }}
     >
-      {/* 注入沉穩的脈動動畫，移除螢光發光效果 */}
+      {/* 注入沉穩的脈動動畫 */}
       <style>
         {`
           @keyframes heavyPulse {
             0% { 
-              opacity: 0.6; 
-              transform: scale(0.92);
+              opacity: 0.8; 
+              transform: scale(0.95);
+              filter: brightness(1);
             }
             50% { 
               opacity: 1; 
-              transform: scale(1);
+              transform: scale(1.02);
+              filter: brightness(1.2); /* 稍微亮一點，像呼吸 */
             }
             100% { 
-              opacity: 0.6; 
-              transform: scale(0.92);
+              opacity: 0.8; 
+              transform: scale(0.95);
+              filter: brightness(1);
             }
           }
         `}
       </style>
 
-      {/* ★ 鋼鐵質感 Logo */}
+      {/* ★ 你的 Logo (請確保 public 資料夾有 og-image.png) */}
       <img 
         src="/og-image.png" 
         alt="EasySplit"
         style={{
           width: '80px',
           height: '80px',
-          borderRadius: '20px',
+          borderRadius: '20px', // 圓角矩形，像 App Icon
           marginBottom: '24px',
-          boxShadow: '0 12px 40px rgba(0,0,0,0.8)', // 厚重的深色陰影
-          //border: '1px solid #333',
-          animation: 'heavyPulse 2.5s infinite ease-in-out' // 較慢的頻率顯得更厚重
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)', // 深邃陰影
+          animation: 'heavyPulse 3s infinite ease-in-out', // 3秒慢速呼吸
+          objectFit: 'cover'
         }}
       />
 
+      {/* 主標題 (顯示傳入的狀態文字，如：驗證中...) */}
       <h1 
         style={{
-          fontSize: '20px',
-          fontWeight: '900', // 鋼鐵極粗體
+          fontSize: '18px',
+          fontWeight: '700', 
           color: '#fff',
-          letterSpacing: '4px',
+          letterSpacing: '2px',
           margin: 0,
-          opacity: 0.9
+          opacity: 0.95,
+          textTransform: 'uppercase' // 英文字母自動轉大寫
         }}
       >
-        {text.toUpperCase()}
+        {text}
       </h1>
       
+      {/* 裝飾性副標題 (增加科技感) */}
       <div style={{ 
-        marginTop: '12px', 
+        marginTop: '8px', 
         display: 'flex',
         alignItems: 'center',
-        gap: '8px'
+        justifyContent: 'center'
       }}>
-        {/* 精簡的讀取文字 */}
+        <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#2563eb', marginRight: '8px', boxShadow: '0 0 8px #2563eb' }}></div>
         <p style={{ 
-          color: '#666', 
-          fontSize: '11px', 
-          fontWeight: '800', // 加粗副標題
-          letterSpacing: '2px',
-          margin: 0
+          color: '#555', 
+          fontSize: '10px', 
+          fontWeight: '800', 
+          letterSpacing: '3px',
+          margin: 0,
+          fontFamily: 'monospace' // 等寬字體更有系統感
         }}>
-          SYSTEM SYNCING
+          SYSTEM PROCESSING
         </p>
       </div>
     </div>
