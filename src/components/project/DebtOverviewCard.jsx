@@ -1,38 +1,83 @@
 import React from 'react';
-import { Wallet, Calculator } from 'lucide-react';
+import { Calculator, Wallet } from 'lucide-react';
 
 const DebtOverviewCard = ({ calculatedSettlements, isOwner, onStartSettlement, getName }) => {
-  return (
-    <div className="band-card" style={{ background: 'linear-gradient(135deg, #1e1e1e 0%, #141414 100%)', padding: '24px 20px', marginBottom: '32px', border: '1px solid #333' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid #333', paddingBottom: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Wallet size={20} color="var(--color-primary)" />
-          <span style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>目前債務概況</span>
+  if (calculatedSettlements.length === 0) {
+    return (
+      <div className="band-card" style={{ padding: '32px', textAlign: 'center', opacity: 0.6 }}>
+        <div style={{ color: 'var(--color-text-sub)', fontSize: '15px', fontWeight: '700' }}>
+          目前無任何債務，帳目平衡中
         </div>
-        {isOwner && calculatedSettlements.length > 0 && (
-          <button onClick={onStartSettlement} style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '20px', background: 'rgba(58, 143, 183, 0.2)', color: 'var(--color-primary)', border: '1px solid var(--color-primary)', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Calculator size={14} /> 開始結算
+      </div>
+    );
+  }
+
+  return (
+    <div className="band-card" style={{ padding: '24px', marginBottom: '20px' }}>
+      {/* Header 區域 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Wallet size={20} color="var(--color-primary)" />
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '900', color: '#fff' }}>目前債務概況</h3>
+        </div>
+
+        {/* ★ 鋼鐵純色按鈕：移除螢光效果 */}
+        {isOwner && (
+          <button 
+            onClick={onStartSettlement}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 24px',
+              borderRadius: '50px',
+              backgroundColor: 'var(--color-primary)', // 純色主題藍
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.1)', // 極細微白邊增加立體感
+              fontSize: '14px',
+              fontWeight: '900',
+              cursor: 'pointer',
+              boxShadow: 'none', // ★ 徹底移除螢光陰影
+              transition: 'all 0.2s ease'
+            }}
+            onPointerDown={(e) => {
+              e.currentTarget.style.transform = 'scale(0.96)';
+              e.currentTarget.style.backgroundColor = 'rgba(58, 143, 183, 0.8)'; // 按下時變暗
+            }}
+            onPointerUp={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.backgroundColor = 'var(--color-primary)';
+            }}
+          >
+            <Calculator size={16} />
+            <span>開始結算</span>
           </button>
         )}
       </div>
-      
+
+      {/* 債務清單區域 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {calculatedSettlements.length > 0 ? (
-          calculatedSettlements.map((s, index) => (
-            <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#ccc', fontSize: '15px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontWeight: '700', color: '#fff' }}>{getName(s.from)}</span>
-                <span style={{ fontSize: '12px', color: '#888' }}>需付</span>
-                <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{getName(s.to)}</span>
-              </div>
-              <div style={{ fontWeight: '900', color: '#fff' }}>
-                NT$ {s.amount.toLocaleString()}
-              </div>
+        {calculatedSettlements.map((item, idx) => (
+          <div key={idx} style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '14px 18px',
+            background: 'rgba(255, 255, 255, 0.02)', // 更暗的背景
+            borderRadius: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.05)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ color: 'var(--color-text-main)', fontWeight: '700', fontSize: '15px' }}>{getName(item.from)}</span>
+              <span style={{ color: 'var(--color-text-sub)', fontSize: '12px' }}>需付</span>
+              <span style={{ color: 'var(--color-primary)', fontWeight: '800', fontSize: '15px' }}>{getName(item.to)}</span>
             </div>
-          ))
-        ) : (
-          <div style={{ textAlign: 'center', color: '#555', fontSize: '14px', padding: '10px 0' }}>目前無債務</div>
-        )}
+            <div style={{ fontSize: '17px', fontWeight: '900', color: '#fff' }}>
+              <span style={{ fontSize: '12px', marginRight: '4px', opacity: 0.5 }}>NT$</span>
+              {item.amount.toLocaleString()}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -175,12 +175,31 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
           <div className="selection-item" style={{ color: '#ff6b6b' }} onClick={() => { onDelete(); setShowMenu(false); }}><Trash2 size={16} /> 刪除專案</div>
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', backgroundColor: isOwner ? 'color-mix(in srgb, var(--color-primary), transparent 85%)' : 'rgba(56, 189, 248, 0.15)', color: isOwner ? 'var(--color-primary)' : '#38bdf8', border: isOwner ? '1px solid color-mix(in srgb, var(--color-primary), transparent 80%)' : '1px solid rgba(56, 189, 248, 0.2)' }}>
-          {isOwner ? <Crown size={11} strokeWidth={3} /> : <User size={11} strokeWidth={3} />} {isOwner ? '擁有者' : '協作者'}
-        </div>
-        {getStatusBadge(project.status)}
-      </div>
+<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+  <div style={{ 
+    display: 'inline-flex', 
+    alignItems: 'center', 
+    gap: '4px', 
+    padding: '4px 8px', 
+    borderRadius: '6px', 
+    fontSize: '11px', 
+    fontWeight: '800', 
+    // ★ 擁有者顏色寫死紅色 (#ff4d4f)，背景套用 85% 透明度
+    backgroundColor: isOwner 
+      ? 'color-mix(in srgb, #ff4d4f, transparent 85%)' 
+      : 'rgba(56, 189, 248, 0.15)', 
+    // ★ 文字顏色同步寫死紅色
+    color: isOwner ? '#ff4d4f' : '#38bdf8', 
+    // ★ 邊框同步寫死紅色，套用 80% 透明度
+    border: isOwner 
+      ? '1px solid color-mix(in srgb, #ff4d4f, transparent 80%)' 
+      : '1px solid rgba(56, 189, 248, 0.2)' 
+  }}>
+    {isOwner ? <Crown size={11} strokeWidth={3} /> : <User size={11} strokeWidth={3} />} 
+    {isOwner ? '擁有者' : '協作者'}
+  </div>
+  {getStatusBadge(project.status)}
+</div>
       <h3 style={{ fontSize: '20px', fontWeight: '900', color: '#fff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: '30px' }}>{project.name || '未命名專案'}</h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-text-sub)', fontSize: '13px', fontWeight: '600' }}>
