@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { 
   Menu, Tags, Palette, Lock, ChevronRight, MessageSquare 
 } from 'lucide-react';
-// import PersonnelView from './PersonnelView'; // 移除
 import EventTypeMgmtView from './EventTypeMgmtView';
 import ThemeSettingsView from './ThemeSettingsView'; 
-import SecuritySettingsView from './SecuritySettingsView'; // ★ 新增引入
+import SecuritySettingsView from './SecuritySettingsView'; 
 
-const SettingItem = ({ icon: Icon, label, onClick }) => (
+/**
+ * 設定項目元件
+ * @param {boolean} showBadge - 是否顯示提醒紅點
+ */
+const SettingItem = ({ icon: Icon, label, onClick, showBadge }) => (
   <div 
     className="band-card" 
     onClick={onClick}
@@ -17,13 +20,15 @@ const SettingItem = ({ icon: Icon, label, onClick }) => (
       justifyContent: 'space-between',
       padding: '18px 24px',
       marginBottom: '12px',
-      cursor: 'pointer'
+      cursor: 'pointer',
+      position: 'relative'
     }}
   >
     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+      {/* 圖示容器：使用主題色 + 15% 透明度背景 */}
       <div style={{ 
         width: '44px', height: '44px', borderRadius: '14px',
-        background: 'rgba(58, 143, 183, 0.1)', 
+        background: 'rgba(58, 143, 183, 0.15)', 
         display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
         <Icon size={20} color="var(--color-primary)" />
@@ -32,18 +37,29 @@ const SettingItem = ({ icon: Icon, label, onClick }) => (
         {label}
       </span>
     </div>
-    <ChevronRight size={18} color="var(--color-text-sub)" />
+
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      {/* 引導紅點 */}
+      {showBadge && (
+        <span style={{ 
+          width: '8px', 
+          height: '8px', 
+          background: '#ff6b6b', 
+          borderRadius: '50%',
+          boxShadow: '0 0 8px rgba(255, 107, 107, 0.4)'
+        }} />
+      )}
+      <ChevronRight size={18} color="var(--color-text-sub)" />
+    </div>
   </div>
 );
 
-const SettingsView = ({ onOpenMenu, user }) => {
+const SettingsView = ({ onOpenMenu, user, showBadge }) => {
   const [subView, setSubView] = useState(null);
 
-  // if (subView === 'personnel') return <PersonnelView onBack={() => setSubView(null)} user={user} />; // 移除
+  // 子頁面路由
   if (subView === 'types') return <EventTypeMgmtView onBack={() => setSubView(null)} user={user} />;
   if (subView === 'theme') return <ThemeSettingsView onBack={() => setSubView(null)} user={user} />;
-  
-  // ★ 新增：安全性頁面路由
   if (subView === 'security') return <SecuritySettingsView onBack={() => setSubView(null)} user={user} />;
 
   return (
@@ -63,12 +79,12 @@ const SettingsView = ({ onOpenMenu, user }) => {
         <main className="band-container">
           <div style={{ padding: '24px 0' }}>
             
-            {/* 移除人員名單管理 */}
-
+            {/* 活動類型管理：僅在此項目套用紅點邏輯 */}
             <SettingItem 
               icon={Tags} 
               label="活動類型管理" 
               onClick={() => setSubView('types')} 
+              showBadge={showBadge} 
             />
 
             <SettingItem 
@@ -83,7 +99,6 @@ const SettingsView = ({ onOpenMenu, user }) => {
               onClick={() => {}} 
             />
 
-            {/* 串接安全性頁面 */}
             <SettingItem 
               icon={Lock} 
               label="帳號安全性" 
@@ -91,7 +106,6 @@ const SettingsView = ({ onOpenMenu, user }) => {
             />
             
           </div>
-
         </main>
       </div>
     </div>

@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Users, Trash2, Edit2, Check, User, Link as LinkIcon, Plus, GripVertical, Share2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import { message, Modal } from 'antd';
+import { message } from 'antd'; // 移除 Modal 引用，改用自定義 AlertModal
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 import ConfirmModal from './ConfirmModal';
+import AlertModal from './AlertModal'; // ★ 引入新建立的鋼鐵樣式 AlertModal
 
 // --- 拖拽排序子組件 ---
 const SortableItem = ({ id, children, isReadOnly }) => {
@@ -17,7 +18,6 @@ const SortableItem = ({ id, children, isReadOnly }) => {
     transition,
     zIndex: isDragging ? 999 : 'auto',
     position: 'relative',
-    // ★ 重點 1：這裡絕對不能放 touchAction: 'none'，否則整個卡片都無法捲動
   };
 
   return (
@@ -31,7 +31,6 @@ const SortableItem = ({ id, children, isReadOnly }) => {
         boxShadow: isDragging ? '0 10px 20px rgba(0,0,0,0.5)' : undefined,
         opacity: isReadOnly ? 0.9 : 1
       }}>
-        {/* ★ 重點 2：只有這個圖示區域是拖拽手把 (Handle) */}
         {!isReadOnly ? (
           <div 
             {...attributes} 
@@ -43,7 +42,7 @@ const SortableItem = ({ id, children, isReadOnly }) => {
               display: 'flex', 
               alignItems: 'center',
               padding: '8px 4px',
-              touchAction: 'none' // ★ 重點 3：touch-action 只放在這裡，確保只有按住這裡才攔截捲動
+              touchAction: 'none' 
             }}
           >
             <GripVertical size={20} />
@@ -51,8 +50,6 @@ const SortableItem = ({ id, children, isReadOnly }) => {
         ) : (
           <div style={{ width: '24px', marginRight: '12px' }} />
         )}
-        
-        {/* 其他區域：因為沒有 touch-action: none，所以點擊此處會觸發瀏覽器的原生捲動 */}
         {children}
       </div>
     </div>
@@ -70,16 +67,14 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState(null);
 
-  // 判斷是否為唯讀模式
+  // ★ 新增：AlertModal 專用狀態
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({ title: '', content: '' });
+
   const isReadOnly = project?.status === 'settling' || project?.status === 'archived';
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { 
-      activationConstraint: { 
-        // ★ 重點 4：設定移動距離限制，防止微小抖動被誤判為拖拽
-        distance: 5 
-      } 
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -92,11 +87,8 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
       .eq('project_id', project.id)
       .order('sort_order', { ascending: true });
     
-    if (error) {
-      message.error('讀取失敗');
-    } else {
-      setMembers(data || []);
-    }
+    if (error) message.error('讀取失敗');
+    else setMembers(data || []);
     setLoading(false);
   };
 
@@ -132,9 +124,7 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
     try {
       await supabase.from('personnel').upsert(updates);
       if (onRefresh) onRefresh();
-    } catch (err) {
-      console.error('排序更新失敗', err);
-    }
+    } catch (err) { console.error('排序更新失敗', err); }
   };
 
   const handleAdd = async () => {
@@ -151,36 +141,25 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
       setNewName('');
       fetchMembers();
       if (onRefresh) onRefresh();
-    } catch (err) {
-      message.error('新增失敗');
-    }
+    } catch (err) { message.error('新增失敗'); }
   };
 
   const handleUpdate = async (id) => {
     if (isReadOnly || !editingName.trim()) return;
     try {
-      const { error } = await supabase.from('personnel')
-        .update({ name: editingName.trim() })
-        .eq('id', id);
+      const { error } = await supabase.from('personnel').update({ name: editingName.trim() }).eq('id', id);
       if (error) throw error;
       message.success('更名成功');
       setEditingId(null);
       fetchMembers();
       if (onRefresh) onRefresh();
-    } catch (err) {
-      message.error('更新失敗');
-    }
+    } catch (err) { message.error('更新失敗'); }
   };
 
   const handleCopyInvite = () => {
-    if (!project?.invite_code) {
-      message.error('無邀請碼');
-      return;
-    }
+    if (!project?.invite_code) { message.error('無邀請碼'); return; }
     const inviteLink = `${window.location.origin}${window.location.pathname}?code=${project.invite_code}`;
-    navigator.clipboard.writeText(inviteLink)
-      .then(() => message.success('已複製邀請連結'))
-      .catch(() => message.error('複製失敗'));
+    navigator.clipboard.writeText(inviteLink).then(() => message.success('已複製邀請連結'));
   };
 
   const handleDeleteClick = async (member) => {
@@ -193,43 +172,44 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
     const { count: txCount } = await supabase.from('transactions').select('*', { count: 'exact', head: true }).or(`payer_id.eq.${member.id},debtor_id.eq.${member.id}`);
     const { count: partCount } = await supabase.from('transaction_participants').select('*', { count: 'exact', head: true }).eq('personnel_id', member.id);
 
+    // ★ 修正處：替換原本的 Modal.error 為 AlertModal
     if ((txCount || 0) > 0 || (partCount || 0) > 0) {
-      Modal.error({ title: '無法刪除', content: `「${member.name}」已有帳務紀錄，無法移除。`, okText: '知道了' });
+      setAlertConfig({
+        title: '無法刪除成員',
+        content: `「${member.name}」已有帳務紀錄，為了確保帳目完整性，無法將其移除。`
+      });
+      setIsAlertOpen(true);
       return;
     }
     setMemberToDelete(member);
     setIsDeleteConfirmOpen(true);
   };
 
-  // ProjectPersonnelModal.jsx 內部的執行刪除函式
-const executeDelete = async () => {
-  if (!memberToDelete) return;
-  setLoading(true);
-  try {
-    if (memberToDelete.linked_user_id) {
-      // ★ 改用 RPC 確保「權限移除」與「身分釋放」同時發生
-      const { error } = await supabase.rpc('kick_member_safe', {
-        p_project_id: project.id,
-        p_target_user_id: memberToDelete.linked_user_id
-      });
-      if (error) throw error;
-    } else {
-      // 如果本來就沒綁定帳號，直接刪除 personnel 紀錄即可
-      const { error } = await supabase.from('personnel').delete().eq('id', memberToDelete.id);
-      if (error) throw error;
+  const executeDelete = async () => {
+    if (!memberToDelete) return;
+    setLoading(true);
+    try {
+      if (memberToDelete.linked_user_id) {
+        const { error } = await supabase.rpc('kick_member_safe', {
+          p_project_id: project.id,
+          p_target_user_id: memberToDelete.linked_user_id
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('personnel').delete().eq('id', memberToDelete.id);
+        if (error) throw error;
+      }
+      message.success('已成功將成員移除並釋放身分');
+      fetchMembers();
+      if (onRefresh) onRefresh(); 
+    } catch (err) {
+      message.error('移除失敗：' + err.message);
+    } finally {
+      setLoading(false);
+      setIsDeleteConfirmOpen(false);
+      setMemberToDelete(null);
     }
-
-    message.success('已成功將成員移除並釋放身分');
-    fetchMembers();
-    if (onRefresh) onRefresh(); 
-  } catch (err) {
-    message.error('移除失敗：' + err.message);
-  } finally {
-    setLoading(false);
-    setIsDeleteConfirmOpen(false);
-    setMemberToDelete(null);
-  }
-};
+  };
 
   if (!isOpen) return null;
 
@@ -321,12 +301,23 @@ const executeDelete = async () => {
         </div>
       </div>
 
+      {/* ★ 執行刪除前的二次確認彈窗 */}
       <ConfirmModal
         open={isDeleteConfirmOpen}
         title={`移除成員？`}
         content={`確定要移除 ${memberToDelete?.name} 嗎？此動作無法復原。`}
         onConfirm={executeDelete}
         onCancel={() => { setIsDeleteConfirmOpen(false); setMemberToDelete(null); }}
+      />
+
+      {/* ★ 「無法刪除」的鋼鐵樣式系統提示 */}
+      <AlertModal
+        isOpen={isAlertOpen}
+        title={alertConfig.title}
+        content={alertConfig.content}
+        onConfirm={() => setIsAlertOpen(false)}
+        okText="我知道了"
+        isDanger={true} // 無法刪除屬於錯誤類別，設為紅色
       />
     </>
   );

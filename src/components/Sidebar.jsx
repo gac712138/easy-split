@@ -1,7 +1,8 @@
 import React from 'react';
 import { X, FolderKanban, LogOut, Settings } from 'lucide-react';
 
-const Sidebar = ({ isOpen, onClose, user, onSignOut, currentView, onNavigate }) => {
+// ★ 接收來自 App.jsx 的 showBadge 屬性
+const Sidebar = ({ isOpen, onClose, user, onSignOut, currentView, onNavigate, showBadge }) => {
   
   // ★ 注入邏輯：優先讀取設定好的暱稱，沒有才用 Email
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || '使用者';
@@ -49,7 +50,7 @@ const Sidebar = ({ isOpen, onClose, user, onSignOut, currentView, onNavigate }) 
           </div>
         </div>
 
-        {/* B. 彈性導航區塊 (維持原樣) */}
+        {/* B. 彈性導航區塊 */}
         <nav style={{ 
           flex: 1, 
           padding: '24px 16px', 
@@ -69,13 +70,30 @@ const Sidebar = ({ isOpen, onClose, user, onSignOut, currentView, onNavigate }) 
           <button 
             className={`sidebar-item ${currentView === 'settings' ? 'active' : ''}`}
             onClick={() => { onNavigate('settings'); onClose(); }}
+            style={{ position: 'relative' }} // ★ 為了讓紅點能相對於按鈕定位
           >
             <Settings size={20} />
             <span>系統設定</span>
+            
+            {/* ★ 系統設定紅點提醒 */}
+            {showBadge && (
+              <span style={{ 
+                position: 'absolute', 
+                right: '16px', 
+                top: '50%', 
+                transform: 'translateY(-50%)',
+                width: '8px', 
+                height: '8px', 
+                background: '#ff6b6b', 
+                borderRadius: '50%',
+                border: '2px solid var(--color-bg)',
+                boxShadow: '0 0 8px rgba(255, 107, 107, 0.4)'
+              }} />
+            )}
           </button>
         </nav>
 
-        {/* C. 底部登出區域 (維持原樣) */}
+        {/* C. 底部登出區域 */}
         <div style={{ 
           padding: '16px 16px 40px', 
           borderTop: '1px solid var(--color-border)',
