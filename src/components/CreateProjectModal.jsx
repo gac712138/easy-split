@@ -103,7 +103,7 @@ const CreateProjectModal = ({ isOpen, onClose, user, onRefresh }) => {
             </label>
             <input 
               type="text" 
-              placeholder="例如：日本旅遊、EP製作..." 
+              placeholder="例如：日本旅遊、12月出遊..." 
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
               className="band-input-pill"
