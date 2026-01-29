@@ -201,24 +201,35 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
     setIsDeleteConfirmOpen(true);
   };
 
-  const executeDelete = async () => {
-    if (!memberToDelete) return;
-    try {
-      if (memberToDelete.linked_user_id) {
-         await supabase.from('project_members').delete().eq('project_id', project.id).eq('user_id', memberToDelete.linked_user_id);
-      }
+  // ProjectPersonnelModal.jsx 內部的執行刪除函式
+const executeDelete = async () => {
+  if (!memberToDelete) return;
+  setLoading(true);
+  try {
+    if (memberToDelete.linked_user_id) {
+      // ★ 改用 RPC 確保「權限移除」與「身分釋放」同時發生
+      const { error } = await supabase.rpc('kick_member_safe', {
+        p_project_id: project.id,
+        p_target_user_id: memberToDelete.linked_user_id
+      });
+      if (error) throw error;
+    } else {
+      // 如果本來就沒綁定帳號，直接刪除 personnel 紀錄即可
       const { error } = await supabase.from('personnel').delete().eq('id', memberToDelete.id);
       if (error) throw error;
-      message.success('已刪除成員');
-      fetchMembers();
-      if (onRefresh) onRefresh();
-    } catch (err) {
-      message.error('刪除失敗');
-    } finally {
-      setIsDeleteConfirmOpen(false);
-      setMemberToDelete(null);
     }
-  };
+
+    message.success('已成功將成員移除並釋放身分');
+    fetchMembers();
+    if (onRefresh) onRefresh(); 
+  } catch (err) {
+    message.error('移除失敗：' + err.message);
+  } finally {
+    setLoading(false);
+    setIsDeleteConfirmOpen(false);
+    setMemberToDelete(null);
+  }
+};
 
   if (!isOpen) return null;
 
