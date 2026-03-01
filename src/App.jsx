@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+// ...existing code...
+import { useProjectsStore } from './store/useProjectsStore';
+import { useModalStore } from './store/useModalStore';
 import { useAuth } from './context/AuthContext';
 import { supabase } from './lib/supabaseClient';
 import { message } from 'antd';
@@ -21,7 +24,7 @@ import './App.css';
 const PROJECT_PAGE_SIZE = 10;
 
 function App() {
-  const { user, signOut } = useAuth();
+  const { user, signOut } = useAuth(); // 只從 AuthContext 取得 user 狀態
 
   /* --- 狀態定義 --- */
   const [currentView, setCurrentView] = useState('projects'); 
@@ -29,44 +32,38 @@ function App() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [editProject, setEditProject] = useState(null);
   
-  const [projects, setProjects] = useState([]);
   const [personnel, setPersonnel] = useState([]); 
   const [isDataLoading, setIsDataLoading] = useState(false);
-  const [loadingText, setLoadingText] = useState(''); // 修正預設值為空
-  
-  const [projectPage, setProjectPage] = useState(0);
-  const [projectsHasMore, setProjectsHasMore] = useState(true);
-  const [isProjectFetchingMore, setIsProjectFetchingMore] = useState(false);
+  const [loadingText, setLoadingText] = useState('');
+
+  // 專案相關狀態與方法來自 store
+  const {
+    projects,
+    loading: projectsLoading,
+    hasMore: projectsHasMore,
+    page: projectPage,
+    fetchProjects,
+  } = useProjectsStore();
 
   const [isTypesEmpty, setIsTypesEmpty] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null); // 仍需本地狀態
+  const [targetJoinProject, setTargetJoinProject] = useState(null);   // 仍需本地狀態
 
-  /* --- Modal 狀態 --- */
-  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState(null); 
-  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
-  const [targetJoinProject, setTargetJoinProject] = useState(null); 
-  const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
+  // Modal 狀態與 actions 來自全域 store
+  const {
+    isCreateModalOpen,
+    isEditProjectModalOpen,
+    isAddTransactionOpen,
+    isJoinModalOpen,
+    isLogoutConfirmOpen,
+    isSetupModalOpen,
+    openModal,
+    closeModal,
+  } = useModalStore();
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const showGlobalBadge = isTypesEmpty;
-
-  /* --- 1. 純淨的 API 抓取函式 (不依賴 State) --- */
-  const fetchProjectsApi = useCallback(async (userId, pageIndex) => {
-    const from = pageIndex * PROJECT_PAGE_SIZE;
-    const to = from + PROJECT_PAGE_SIZE - 1;
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(from, to);
-      
-    if (error) throw error;
-    return data;
-  }, []);
 
   /* --- 2. 檢查紅點狀態 --- */
   const checkCategoriesStatus = useCallback(async () => {
@@ -79,46 +76,22 @@ function App() {
     setIsTypesEmpty(count === 0);
   }, [user?.id]);
 
-  /* --- 3. 整合後的資料更新邏輯 (取代原本的 refreshGlobalData) --- */
-  // 這個函式負責更新 State，它依賴 fetchProjectsApi，但不依賴 projectPage
-  const fetchAndSetProjects = useCallback(async (userId, page, isReset) => {
-    if (!userId) return;
-
-    try {
-      if (isReset) {
-        setIsDataLoading(true);
-      } else {
-        setIsProjectFetchingMore(true);
-      }
-
-      // ★ 呼叫上面定義好的 API 函式
-      const data = await fetchProjectsApi(userId, page);
-
-      if (data) {
-        setProjects(prev => isReset ? data : [...prev, ...data]);
-        setProjectsHasMore(data.length === PROJECT_PAGE_SIZE);
-        setProjectPage(page); // 在這裡才更新頁碼 State
-      }
-    } catch (err) {
-      console.error(err);
-      message.error("專案同步失敗");
-    } finally {
-      setIsDataLoading(false); 
-      setIsProjectFetchingMore(false);
-    }
-  }, [fetchProjectsApi]);
+  // projects 相關的 fetch/add/remove/update 已交由 useProjectsStore 處理
 
   /* --- UI 事件處理 --- */
   // 重新整理 (重置回第 0 頁)
   const handleRefresh = () => {
-    if (user?.id) fetchAndSetProjects(user.id, 0, true);
+    if (user?.id) {
+      console.log('App fetching projects for:', user.id);
+      fetchProjects(user.id, true, null); // 不過濾狀態
+    }
   };
 
   // 載入更多 (載入下一頁)
   const handleLoadMore = () => {
-    if (!projectsHasMore || isProjectFetchingMore || !user?.id) return;
-    const nextPage = projectPage + 1;
-    fetchAndSetProjects(user.id, nextPage, false);
+    if (!projectsHasMore || projectsLoading || !user?.id) return;
+    console.log('App fetching projects for:', user.id);
+    fetchProjects(user.id, false, null); // 不過濾狀態
   };
 
   /* --- Google 登入邏輯 --- */
@@ -141,6 +114,7 @@ function App() {
   };
 
   /* --- 初始化 useEffect --- */
+  // 只負責主題、紅點、邀請碼等初始化
   useEffect(() => {
     if (!user) {
       const root = document.documentElement.style;
@@ -148,13 +122,10 @@ function App() {
       return;
     }
 
-    // 重置狀態
     setIsMenuOpen(false);       
     setCurrentView('projects'); 
     setSelectedProject(null);   
 
-    // ★ 關鍵：檢查是否需要彈出設定視窗 (初次登入/無暱稱者)
-    // 邏輯：如果有 user，但 user_metadata 內沒有 name，就開啟設定
     if (!user.user_metadata || !user.user_metadata.name) {
       setIsSetupModalOpen(true);
     }
@@ -171,10 +142,7 @@ function App() {
       // 2. 初始化檢查紅點
       await checkCategoriesStatus();
 
-      // ★ 3. 呼叫新的資料函式 (初始化：第 0 頁，Reset = true)
-      await fetchAndSetProjects(user.id, 0, true);
-
-      // 4. 邀請碼邏輯
+      // 3. 邀請碼邏輯
       const params = new URLSearchParams(window.location.search);
       const codeFromUrl = params.get('code');
       const codeFromStorage = localStorage.getItem('pending_invite_code');
@@ -204,9 +172,17 @@ function App() {
       }
     };
     init();
-    
-    // ★ 關鍵：依賴列表移除 projectPage，加入 fetchAndSetProjects
-  }, [user, fetchAndSetProjects, checkCategoriesStatus]);
+  }, [user, checkCategoriesStatus]);
+
+  // 只負責抓取專案列表
+  useEffect(() => {
+    if (user?.id) {
+      // 觀察 store 內部 projects 狀態
+      console.log('Current projects in store before fetch:', projects.length);
+      console.log('App fetching projects for:', user.id);
+      fetchProjects(user.id, true, null); // 不過濾狀態
+    }
+  }, [user?.id, fetchProjects]);
 
   if (!user) {
     return (
@@ -235,7 +211,7 @@ function App() {
           if (view !== 'settings') setSelectedProject(null); 
           setIsMenuOpen(false); 
         }} 
-        onSignOut={() => setIsLogoutConfirmOpen(true)} 
+        onSignOut={() => openModal('logoutConfirm')} 
       />
 
       <main className="content-area-wrapper">
@@ -243,20 +219,17 @@ function App() {
           !selectedProject ? (
             <Dashboard 
               user={user} 
-              projects={projects} 
-              loading={isDataLoading}
+              projects={projects} // 來自 useProjectsStore
+              loading={projectsLoading}
               onOpenMenu={() => setIsMenuOpen(true)} 
-              onOpenCreate={() => setIsCreateModalOpen(true)}
+              onOpenCreate={() => openModal('create')}
               onSelectProject={(p) => setSelectedProject(p)} 
               onEditProject={(p) => setEditProject(p)}
               showBadge={showGlobalBadge}
-              
-              /* ★ 修正：這裡改用新的 handler */
               onRefresh={handleRefresh}
               onLoadMore={handleLoadMore}
-              
               hasMore={projectsHasMore}
-              isFetchingMore={isProjectFetchingMore}
+              isFetchingMore={projectsLoading}
             />
           ) : (
             <ProjectDetailView 
@@ -266,7 +239,7 @@ function App() {
                 checkCategoriesStatus(); 
               }} 
               personnel={personnel} 
-              onRefresh={handleRefresh} // 這裡也統一用 handleRefresh
+              onRefresh={handleRefresh}
               onAddTransaction={() => { setEditingTransaction(null); setIsAddTransactionOpen(true); }}
               onEditTransaction={(transaction) => { setEditingTransaction(transaction); setIsAddTransactionOpen(true); }}
               lastUpdated={refreshTrigger}
@@ -284,14 +257,14 @@ function App() {
       </main>
 
       {/* --- Modals --- */}
-      <CreateProjectModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} user={user} onRefresh={handleRefresh} />
-      
+      <CreateProjectModal isOpen={isCreateModalOpen} onClose={() => closeModal('create')} user={user} onRefresh={handleRefresh} />
+
       <EditProjectModal isOpen={!!editProject} project={editProject} user={user} personnel={personnel} onClose={() => setEditProject(null)} onRefresh={handleRefresh} />
-      
+
       {selectedProject && (
         <AddTransactionModal 
           isOpen={isAddTransactionOpen} 
-          onClose={() => setIsAddTransactionOpen(false)} 
+          onClose={() => closeModal('addTransaction')} 
           project={selectedProject} 
           personnel={personnel} 
           user={user} 
@@ -302,16 +275,16 @@ function App() {
           }} 
         />
       )}
-      
-      <JoinProjectModal isOpen={isJoinModalOpen} onClose={() => setIsJoinModalOpen(false)} project={targetJoinProject} user={user} onSuccess={(p) => { handleRefresh(); setSelectedProject(p); }} />
-      
-      <ConfirmModal open={isLogoutConfirmOpen} title="確認登出系統？" content="登出後需重新登入才能繼續管理。" onConfirm={async () => { await signOut(); setIsLogoutConfirmOpen(false); }} onCancel={() => setIsLogoutConfirmOpen(false)} />
-      
+
+      <JoinProjectModal isOpen={isJoinModalOpen} onClose={() => closeModal('join')} project={targetJoinProject} user={user} onSuccess={(p) => { handleRefresh(); setSelectedProject(p); }} />
+
+      <ConfirmModal open={isLogoutConfirmOpen} title="確認登出系統？" content="登出後需重新登入才能繼續管理。" onConfirm={async () => { await signOut(); closeModal('logoutConfirm'); }} onCancel={() => closeModal('logoutConfirm')} />
+
       {/* ★ 這裡呼叫 SetupProfileModal
         (請確保你的 SetupProfileModal.jsx 是我上一則回應提供的那個版本，
          它才會正確區分 Google 登入不用填密碼) 
       */}
-      <SetupProfileModal isOpen={isSetupModalOpen} user={user} onComplete={() => setIsSetupModalOpen(false)} />
+      <SetupProfileModal isOpen={isSetupModalOpen} user={user} onComplete={() => closeModal('setup')} />
     </div>
   );
 }

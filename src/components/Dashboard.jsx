@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient'; 
 import { message } from 'antd';
+import { useModalStore } from '../store/useModalStore';
 import ConfirmModal from '../components/ConfirmModal'; 
 import ScrollObserver from './ScrollObserver'; 
 import InviteHandler from './InviteHandler'; 
@@ -14,7 +15,6 @@ const Dashboard = ({
   projects, 
   loading, 
   onOpenMenu, 
-  onOpenCreate, 
   onSelectProject, 
   onEditProject, 
   onRefresh,
@@ -23,6 +23,7 @@ const Dashboard = ({
   isFetchingMore,
   showBadge
 }) => {
+  const { openModal } = useModalStore();
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -87,7 +88,7 @@ const Dashboard = ({
             <h2 style={{ fontSize: '24px', fontWeight: '900', color: 'var(--color-text-main)', letterSpacing: '-0.02em' }}>
               我的分帳專案
             </h2>
-            <button className="band-btn-main" onClick={onOpenCreate} style={{ padding: '10px 20px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button className="band-btn-main" onClick={() => openModal('create')} style={{ padding: '10px 20px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Plus size={18} />
               <span>建立專案</span>
             </button>
@@ -97,8 +98,9 @@ const Dashboard = ({
             <div style={{ textAlign: 'center', padding: '80px', color: 'var(--color-text-sub)', fontSize: '14px', fontWeight: '600' }}>
               正在同步專案資料...
             </div>
-          ) : projects.length > 0 ? (
+          ) : Array.isArray(projects) && projects.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* 強制不過濾狀態，直接 map 所有專案 */}
               {projects.map(project => (
                 <ProjectCard 
                   key={project.id} 
@@ -219,7 +221,9 @@ const ProjectCard = ({ project, user, onClick, onEdit, onDelete }) => {
         </div>
         <div style={{ display: 'flex' }}>
           {members.slice(0, 5).map((m, i) => (
-            <div key={m?.id || i} style={{ width: 24, height: 24, borderRadius: '8px', background: '#252525', border: '1px solid var(--color-bg-pill)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '900', marginLeft: i === 0 ? 0 : -6, color: i === 0 ? 'var(--color-primary)' : '#888' }}>{m?.name ? m.name.charAt(0) : '?'}</div>
+            m?.name
+              ? <div key={m?.id || i} style={{ width: 24, height: 24, borderRadius: '8px', background: '#252525', border: '1px solid var(--color-bg-pill)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '900', marginLeft: i === 0 ? 0 : -6, color: i === 0 ? 'var(--color-primary)' : '#888' }}>{m.name.charAt(0)}</div>
+              : null
           ))}
           {members.length > 5 && <div style={{ width: 24, height: 24, borderRadius: '8px', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#555', marginLeft: -6, border: '1px solid var(--color-bg-pill)', fontWeight: '900' }}>+{members.length - 5}</div>}
         </div>
