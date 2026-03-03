@@ -55,7 +55,7 @@ function App() {
     isEditProjectModalOpen,
     isAddTransactionOpen,
     isJoinModalOpen,
-    isLogoutConfirmOpen,
+    isLogoutConfirmModalOpen,
     isSetupModalOpen,
     openModal,
     closeModal,
@@ -282,7 +282,7 @@ function App() {
 
       <JoinProjectModal isOpen={isJoinModalOpen} onClose={() => closeModal('join')} project={targetJoinProject} user={user} onSuccess={(p) => { handleRefresh(); setSelectedProject(p); }} />
 
-      <ConfirmModal open={isLogoutConfirmOpen} title="確認登出系統？" content="登出後需重新登入才能繼續管理。" onConfirm={async () => { await signOut(); closeModal('logoutConfirm'); }} onCancel={() => closeModal('logoutConfirm')} />
+      <ConfirmModal open={isLogoutConfirmModalOpen} title="確認登出系統？" content="登出後需重新登入才能繼續管理。" onConfirm={async () => { await signOut(); closeModal('logoutConfirm'); }} onCancel={() => closeModal('logoutConfirm')} />
 
       {/* ★ 這裡呼叫 SetupProfileModal
         (請確保你的 SetupProfileModal.jsx 是我上一則回應提供的那個版本，
