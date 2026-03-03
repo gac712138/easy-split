@@ -76,6 +76,43 @@ function App() {
     setIsTypesEmpty(count === 0);
   }, [user?.id]);
 
+  /* --- 3. URL 狀態管理：專案 ID 持久化 --- */
+  const updateUrlProjectId = (projectId) => {
+    const url = new URL(window.location);
+    if (projectId) {
+      url.searchParams.set('projectId', projectId);
+    } else {
+      url.searchParams.delete('projectId');
+    }
+    window.history.pushState({}, '', url);
+  };
+
+  const loadProjectFromUrl = useCallback(async () => {
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get('projectId');
+    
+    if (projectId && !selectedProject && user?.id) {
+      try {
+        const { data, error } = await supabase
+          .from('projects')
+          .select('*, project_members!inner(user_id)')
+          .eq('id', projectId)
+          .eq('project_members.user_id', user.id)
+          .single();
+          
+        if (!error && data) {
+          setSelectedProject(data);
+        } else {
+          // 專案不存在或無權限，清除 URL
+          updateUrlProjectId(null);
+        }
+      } catch (err) {
+        console.error('載入專案失敗:', err);
+        updateUrlProjectId(null);
+      }
+    }
+  }, [selectedProject, user?.id]);
+
   // projects 相關的 fetch/add/remove/update 已交由 useProjectsStore 處理
 
   /* --- UI 事件處理 --- */
@@ -163,6 +200,7 @@ function App() {
 
           if (membership) {
             setSelectedProject(project);
+            updateUrlProjectId(project.id); // 邀請碼進入時也記錄 URL
           } else {
             setTargetJoinProject(project);
             setIsJoinModalOpen(true);
@@ -188,6 +226,11 @@ function App() {
     }
   }, [user?.id, fetchProjects]);
 
+  // URL 專案 ID 監聽 (分頁切回時自動載入)
+  useEffect(() => {
+    loadProjectFromUrl();
+  }, [loadProjectFromUrl]);
+
   if (!user) {
     return (
       <>
@@ -212,7 +255,10 @@ function App() {
         showBadge={showGlobalBadge} 
         onNavigate={(view) => { 
           setCurrentView(view); 
-          if (view !== 'settings') setSelectedProject(null); 
+          if (view !== 'settings') {
+            setSelectedProject(null);
+            updateUrlProjectId(null); // 切換到其他頁面時清除專案記錄
+          }
           setIsMenuOpen(false); 
         }} 
         onSignOut={() => openModal('logoutConfirm')} 
@@ -227,7 +273,10 @@ function App() {
               loading={projectsLoading}
               onOpenMenu={() => setIsMenuOpen(true)} 
               onOpenCreate={() => openModal('create')}
-              onSelectProject={(p) => setSelectedProject(p)} 
+              onSelectProject={(p) => {
+                setSelectedProject(p);
+                updateUrlProjectId(p.id); // 加入 URL 記錄
+              }} 
               onEditProject={(p) => setEditProject(p)}
               showBadge={showGlobalBadge}
               onRefresh={handleRefresh}
@@ -239,7 +288,8 @@ function App() {
             <ProjectDetailView 
               project={selectedProject} 
               onBack={() => { 
-                setSelectedProject(null); 
+                setSelectedProject(null);
+                updateUrlProjectId(null); // 清除 URL 記錄
                 checkCategoriesStatus(); 
               }} 
               personnel={personnel} 
@@ -280,7 +330,11 @@ function App() {
         />
       )}
 
-      <JoinProjectModal isOpen={isJoinModalOpen} onClose={() => closeModal('join')} project={targetJoinProject} user={user} onSuccess={(p) => { handleRefresh(); setSelectedProject(p); }} />
+      <JoinProjectModal isOpen={isJoinModalOpen} onClose={() => closeModal('join')} project={targetJoinProject} user={user} onSuccess={(p) => { 
+        handleRefresh(); 
+        setSelectedProject(p);
+        updateUrlProjectId(p.id); // 加入專案成功時記錄 URL
+      }} />
 
       <ConfirmModal open={isLogoutConfirmModalOpen} title="確認登出系統？" content="登出後需重新登入才能繼續管理。" onConfirm={async () => { await signOut(); closeModal('logoutConfirm'); }} onCancel={() => closeModal('logoutConfirm')} />
 
