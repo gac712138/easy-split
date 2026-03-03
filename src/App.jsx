@@ -96,23 +96,27 @@ function App() {
 
   /* --- Google 登入邏輯 --- */
   const handleGoogleLogin = async () => {
-    setLoadingText('正在導向 Google...');
-    setIsDataLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin, 
-          queryParams: { access_type: 'offline', prompt: 'select_account' },
+  setLoadingText('正在導向 Google...');
+  setIsDataLoading(true);
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin, 
+        queryParams: { 
+          access_type: 'offline', 
+          prompt: 'select_account',
+          // 關鍵！把 NAS 的 Anon Key 塞進網址參數
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, 
         },
-      });
-      if (error) throw error;
-    } catch (err) {
-      setIsDataLoading(false);
-      message.error('Google 登入啟動失敗: ' + err.message);
-    }
-  };
-
+      },
+    });
+    if (error) throw error;
+  } catch (err) {
+    setIsDataLoading(false);
+    message.error('Google 登入啟動失敗: ' + err.message);
+  }
+};
   /* --- 初始化 useEffect --- */
   // 只負責主題、紅點、邀請碼等初始化
   useEffect(() => {
