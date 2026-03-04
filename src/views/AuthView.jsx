@@ -72,7 +72,7 @@ const mainBtnStyle = {
   marginTop: '12px'
 };
 
-const AuthView = ({ onOAuthLogin }) => {
+const AuthView = ({ onGoogleLogin }) => {
   const [mode, setMode] = useState(MODE.LOGIN);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
@@ -189,7 +189,7 @@ const AuthView = ({ onOAuthLogin }) => {
             {/* ★ 優化後的 Google 按鈕 */}
             <button 
               type="button" 
-              onClick={() => onOAuthLogin('google')}
+              onClick={onGoogleLogin}
               style={{
                 width: '100%',
                 height: '52px',
@@ -220,7 +220,9 @@ const AuthView = ({ onOAuthLogin }) => {
             {/* ★ LINE 登入按鈕 */}
             <button 
               type="button" 
-              onClick={() => onOAuthLogin('line')}
+              onClick={() => {
+                window.location.href = 'https://api-easysplit.island-dev.com/auth/line';
+              }}
               style={{
                 width: '100%',
                 height: '52px',

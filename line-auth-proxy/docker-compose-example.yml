@@ -1,0 +1,50 @@
+# 在您現有的 docker-compose.yml 中添加以下服務配置
+# 
+# 這是一個 auth-proxy 服務區塊的範例
+# 請將此區塊添加到您現有的 services 區段中
+
+services:
+  # ... 您現有的服務 (database, auth, rest, etc.)
+
+  auth-proxy:
+    build:
+      context: ./line-auth-proxy
+      dockerfile: Dockerfile
+    container_name: supabase-auth-proxy
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      # Supabase 連接設定
+      SUPABASE_URL: ${SUPABASE_PUBLIC_URL}
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      
+      # LINE OAuth 設定 
+      LINE_CHANNEL_ID: ${GOTRUE_EXTERNAL_LINE_CLIENT_ID}
+      LINE_CHANNEL_SECRET: ${GOTRUE_EXTERNAL_LINE_SECRET}
+      LINE_REDIRECT_URI: "https://api-easysplit.island-dev.com/auth/line/callback"
+      
+      # 前端重定向設定
+      FRONTEND_URL: ${SITE_URL}
+      
+      # 服務設定
+      PORT: 3001
+      NODE_ENV: production
+    networks:
+      - default
+    depends_on:
+      - auth
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# ⚠️ 重要提醒：
+# 請在您現有的 auth 服務中刪除以下環境變數：
+#   - GOTRUE_EXTERNAL_LINE_CLIENT_ID
+#   - GOTRUE_EXTERNAL_LINE_SECRET  
+#   - GOTRUE_EXTERNAL_LINE_ENABLED
+# 並將 GOTRUE_EXTERNAL_PROVIDERS 改為：
+#   GOTRUE_EXTERNAL_PROVIDERS: "google"
