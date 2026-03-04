@@ -208,7 +208,6 @@ function App() {
       const codeToProcess = codeFromUrl || codeFromStorage;
 
       if (codeToProcess) {
-        // 如果是剛從 URL 進來的，先存進 LocalStorage 防丟失 (例如登入跳轉時)
         if (codeFromUrl) localStorage.setItem('pending_invite_code', codeFromUrl);
         
         try {
@@ -227,26 +226,28 @@ function App() {
             .maybeSingle();
 
           if (membership) {
-            // ✨ 修正點 1：如果是現有成員，進入時也自動執行重載
-            handleRefresh(); // 更新全域專案列表資料
+            handleRefresh();
             setSelectedProject(project);
-            updateUrlProjectId(project.id);
-            
-            // ✨ 修正點 2：檢查紅點狀態 (確保分類資料也是最新的)
-            await checkCategoriesStatus(); 
-            
+            // ✨ 第一步：在這裡設定 projectId
+            updateUrlProjectId(project.id); 
             message.success(`已自動切換至專案：${project.name}`);
           } else {
-            // 若非成員，開啟加入彈窗 (JoinProjectModal 本身已在 onSuccess 處理 handleRefresh)
             setTargetJoinProject(project);
             setIsJoinModalOpen(true);
+            // 註：未加入前先不改 URL，等 JoinProjectModal 成功後它會自己改
           }
         } catch (err) {
-          console.error('邀請碼處理出錯:', err);
+          console.error('處理邀請碼失敗:', err);
         } finally {
-          // 處理完畢後，清理快取並洗掉 URL 上的髒東西
+          // ✨ 第二步：精確清理 URL，只移除邀請相關參數
           localStorage.removeItem('pending_invite_code');
-          window.history.replaceState({}, '', window.location.pathname);
+          
+          const url = new URL(window.location);
+          url.searchParams.delete('code');       // 移除 code
+          url.searchParams.delete('liff.state'); // 移除 liff.state
+          
+          // 使用 replaceState 替換網址，這樣 projectId 就會被保留下來
+          window.history.replaceState({}, '', url.pathname + url.search);
         }
       }
     };
