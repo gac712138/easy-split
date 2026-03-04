@@ -175,7 +175,7 @@ function App() {
     }
 
     const init = async () => {
-      // 1. 讀取佈景主題
+      // 1. 讀取佈景主題 (維持原樣)
       const { data: themeData } = await supabase.from('user_settings').select('key, value').eq('user_id', user.id);
       if (themeData) {
         themeData.forEach(s => {
@@ -183,24 +183,23 @@ function App() {
         });
       }
 
-      // 2. 初始化檢查紅點
+      // 2. 初始化檢查紅點 (維持原樣)
       await checkCategoriesStatus();
 
-      // 3. 邀請碼邏輯
-      // 3. 邀請碼邏輯 (修正版：支援 LIFF 解碼)
+      // 3. 邀請碼與 URL 轉型邏輯
       const params = new URLSearchParams(window.location.search);
       let codeFromUrl = params.get('code');
 
-      // ✨ 新增：如果 URL 沒直接抓到 code，但有 liff.state，就進去拆箱解碼
+      // ✨ LIFF 解碼：支援 ?liff.state=%3Fcode%3D...
       if (!codeFromUrl && params.has('liff.state')) {
         try {
-          const liffState = params.get('liff.state'); // 拿到 "%3Fcode%3D4739fa"
-          const decodedSearch = decodeURIComponent(liffState); // 解碼成 "?code=4739fa"
+          const liffState = params.get('liff.state');
+          const decodedSearch = decodeURIComponent(liffState);
           const stateParams = new URLSearchParams(decodedSearch);
           codeFromUrl = stateParams.get('code');
-          if (codeFromUrl) console.log('✅ 從 liff.state 成功提取邀請碼:', codeFromUrl);
+          if (codeFromUrl) console.log('✅ LIFF 解碼邀請碼成功:', codeFromUrl);
         } catch (e) {
-          console.error('解析 liff.state 出錯:', e);
+          console.error('LIFF 解碼失敗:', e);
         }
       }
 
@@ -208,16 +207,23 @@ function App() {
       const codeToProcess = codeFromUrl || codeFromStorage;
 
       if (codeToProcess) {
+        // 先存入暫存以防萬一
         if (codeFromUrl) localStorage.setItem('pending_invite_code', codeFromUrl);
         
         try {
+          // 透過 RPC 取得專案預覽
           const { data: projects, error } = await supabase.rpc('get_project_preview_by_code', { 
             p_invite_code: codeToProcess 
           });
           
-          if (error || !projects || projects.length === 0) return;
+          if (error || !projects || projects.length === 0) {
+            console.warn('找不到對應的專案或邀請碼已失效');
+            return;
+          }
 
           const project = projects[0];
+          
+          // 檢查成員身分
           const { data: membership } = await supabase
             .from('project_members')
             .select('id')
@@ -226,28 +232,31 @@ function App() {
             .maybeSingle();
 
           if (membership) {
-            handleRefresh();
+            // --- 狀況 A：專案內成員 ---
+            handleRefresh(); // 自動重載專案列表
             setSelectedProject(project);
-            // ✨ 第一步：在這裡設定 projectId
-            updateUrlProjectId(project.id); 
-            message.success(`已自動切換至專案：${project.name}`);
+            updateUrlProjectId(project.id); // ✨ 邀請碼轉為專案 ID
+            message.success(`歡迎回來！已進入專案：${project.name}`);
           } else {
+            // --- 狀況 B：非專案成員 ---
+            // ✨ 重點：先設定目標專案，再開啟 Modal
             setTargetJoinProject(project);
-            setIsJoinModalOpen(true);
-            // 註：未加入前先不改 URL，等 JoinProjectModal 成功後它會自己改
+            setIsJoinModalOpen(true); 
+            console.log('📢 非成員，啟動加入彈窗');
           }
         } catch (err) {
-          console.error('處理邀請碼失敗:', err);
+          console.error('邀請流程發生錯誤:', err);
         } finally {
-          // ✨ 第二步：精確清理 URL，只移除邀請相關參數
+          // 4. ✨ 精準清理 URL (不採用焦土政策)
           localStorage.removeItem('pending_invite_code');
           
-          const url = new URL(window.location);
-          url.searchParams.delete('code');       // 移除 code
-          url.searchParams.delete('liff.state'); // 移除 liff.state
+          const finalUrl = new URL(window.location);
+          finalUrl.searchParams.delete('code');       // 刪除 code
+          finalUrl.searchParams.delete('liff.state'); // 刪除 liff.state
           
-          // 使用 replaceState 替換網址，這樣 projectId 就會被保留下來
-          window.history.replaceState({}, '', url.pathname + url.search);
+          // 如果是成員，此時 URL 已經被 updateUrlProjectId 加入了 projectId
+          // 如果是非成員，此時 URL 會變回乾淨的 /, 等按下加入成功後才會加上 projectId
+          window.history.replaceState({}, '', finalUrl.pathname + finalUrl.search);
         }
       }
     };
