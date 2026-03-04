@@ -235,23 +235,37 @@ function App() {
             // --- 狀況 A：專案內成員 ---
             handleRefresh(); // 自動重載專案列表
             setSelectedProject(project);
-            updateUrlProjectId(project.id); // ✨ 邀請碼轉為專案 ID
+            updateUrlProjectId(project.id);
             message.success(`歡迎回來！已進入專案：${project.name}`);
           } else {
             // --- 狀況 B：非專案成員 ---
-            // ✨ 重點：先設定目標專案，再開啟 Modal
-            setTargetJoinProject(project);
-            setIsJoinModalOpen(true); 
-            console.log('📢 非成員，啟動加入彈窗');
+            // 查詢專案預覽資料
+            const { data: preview } = await supabase
+              .from('projects')
+              .select('id, name')
+              .eq('id', projectIdToProcess)
+              .maybeSingle();
+            
+            if (preview) {
+              setTargetJoinProject(preview);
+              openModal('join');
+              console.log('📢 非成員，啟動加入彈窗');
+            }
           }
         } catch (err) {
           console.error('邀請流程發生錯誤:', err);
         } finally {
-          // 4. ✨ 精準清理 URL
+          // 4. ✨ 精準清理 URL（僅移除 code 與 liff.state，保留 projectId）
           localStorage.removeItem('pending_project_id');
           
           const finalUrl = new URL(window.location);
+          finalUrl.searchParams.delete('code');       // 移除舊有 code 參數（若有）
           finalUrl.searchParams.delete('liff.state'); // 刪除 liff.state
+          
+          // 確保 projectId 存在於 URL
+          if (projectIdToProcess && !finalUrl.searchParams.has('projectId')) {
+            finalUrl.searchParams.set('projectId', projectIdToProcess);
+          }
           
           // 保留 ?projectId= 作為乾淨的 URL 狀態
           window.history.replaceState({}, '', finalUrl.pathname + finalUrl.search);
