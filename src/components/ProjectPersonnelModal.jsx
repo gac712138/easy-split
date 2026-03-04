@@ -157,13 +157,13 @@ const ProjectPersonnelModal = ({ isOpen, onClose, project, onRefresh, user }) =>
   };
 
 const handleCopyInvite = () => {
-  if (!project?.invite_code || !project?.name) {
-    message.error('邀請資料不完整');
+  if (!project?.id || !project?.name) {
+    message.error('專案資料不完整');
     return;
   }
 
-  // 1. 定義連結與格式化文字
-  const inviteLink = `${window.location.origin}${window.location.pathname}?code=${project.invite_code}`;
+  // 1. 定義連結與格式化文字（使用 projectId 取代 invite_code）
+  const inviteLink = `${window.location.origin}${window.location.pathname}?projectId=${project.id}`;
   const copyText = `歡迎使用Easy Split，請點選加入 【${project.name}】\n${inviteLink}`;
 
   // 2. 執行複製

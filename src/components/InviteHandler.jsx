@@ -6,48 +6,49 @@ const InviteHandler = ({ user, onInvitationDetected, onAlreadyMember }) => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
+    const projectId = params.get('projectId');
 
-    // 只有在網址有 code 且使用者已登入的情況下執行
-    if (code && user && !isProcessingRef.current) {
+    // 只有在網址有 projectId 且使用者已登入的情況下執行
+    if (projectId && user && !isProcessingRef.current) {
       isProcessingRef.current = true;
 
-      // InviteHandler.jsx 核心修復片段
-const handleInvitation = async () => {
-  try {
-    // ★ 修改處：改用 rpc 查詢專案預覽，避免 RLS 導致的 406 錯誤
-    const { data: projects, error } = await supabase.rpc('get_project_preview_by_code', {
-      p_invite_code: code
-    });
+      const handleInvitation = async () => {
+        try {
+          // 直接從 projects 表查詢專案資料（移除 invite_code 依賴）
+          const { data: project, error } = await supabase
+            .from('projects')
+            .select('id, name, status, user_id')
+            .eq('id', projectId)
+            .single();
 
-    if (error || !projects || projects.length === 0) {
-      console.error('邀請碼無效');
-      return;
-    }
+          if (error || !project) {
+            console.error('專案 ID 無效或專案不存在');
+            return;
+          }
 
-    const project = projects[0];
+          // 檢查是否已經是成員
+          const { data: membership } = await supabase
+            .from('project_members')
+            .select('id')
+            .eq('project_id', project.id)
+            .eq('user_id', user.id)
+            .maybeSingle();
 
-    // 檢查是否已經是成員 (這部分維持原樣)
-    const { data: membership } = await supabase
-      .from('project_members')
-      .select('id')
-      .eq('project_id', project.id)
-      .eq('user_id', user.id)
-      .maybeSingle(); // 使用 maybeSingle 避免報錯
-
-    if (membership) {
-      onAlreadyMember(project);
-    } else {
-      // 觸發 Dashboard 開啟認領視窗
-      onInvitationDetected(project);
-    }
-  } catch (err) {
-    console.error('處理邀請失敗:', err);
-  } finally {
-    const newUrl = window.location.pathname;
-    window.history.replaceState({}, '', newUrl);
-  }
-};
+          if (membership) {
+            onAlreadyMember(project);
+          } else {
+            // 觸發 Dashboard 開啟認領視窗
+            onInvitationDetected(project);
+          }
+        } catch (err) {
+          console.error('處理邀請失敗:', err);
+        } finally {
+          // 保留 projectId 在 URL 上作為乾淨狀態
+          const newUrl = new URL(window.location);
+          newUrl.searchParams.delete('liff.state'); // 清理 LIFF state
+          window.history.replaceState({}, '', newUrl.pathname + newUrl.search);
+        }
+      };
 
       handleInvitation();
     }

@@ -32,24 +32,13 @@ const JoinProjectModal = ({ isOpen, onClose, project, user, onSuccess }) => {
   useEffect(() => {
     if (isOpen && project) {
       const fetchPersonnel = async () => {
-        let data, error;
-
-        // 嘗試透過邀請碼讀取 (繞過 RLS)
-        if (project.invite_code) {
-             const result = await supabase
-            .rpc('get_unclaimed_personnel', { lookup_invite_code: project.invite_code });
-            data = result.data;
-            error = result.error;
-        } else {
-             const result = await supabase
-            .from('personnel')
-            .select('*')
-            .eq('project_id', project.id)
-            .is('linked_user_id', null)
-            .order('created_at');
-            data = result.data;
-            error = result.error;
-        }
+        // 直接使用 project_id 查詢（移除 invite_code 依賴）
+        const { data, error } = await supabase
+          .from('personnel')
+          .select('*')
+          .eq('project_id', project.id)
+          .is('linked_user_id', null)
+          .order('created_at');
 
         if (error) {
           console.error('Fetch personnel failed:', error);

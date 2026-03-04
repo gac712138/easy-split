@@ -117,9 +117,10 @@ const ProjectDetailView = ({
       }
 
       try {
+        // 移除 invite_code 查詢（已廢除），只查詢 project_members 取得 owner
         const { data: projectData, error } = await supabase
           .from('projects')
-          .select('invite_code, project_members(user_id)')
+          .select('project_members(user_id)')
           .eq('id', projectId)
           .single();
 
@@ -133,7 +134,6 @@ const ProjectDetailView = ({
         }
 
         if (projectData) {
-          setProject(projectData);
           const ownerId = projectData.project_members?.user_id;
 
           if (ownerId) {

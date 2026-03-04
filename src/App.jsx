@@ -186,42 +186,42 @@ function App() {
       // 2. 初始化檢查紅點 (維持原樣)
       await checkCategoriesStatus();
 
-      // 3. 邀請碼與 URL 轉型邏輯
+      // 3. 專案 ID URL 進入邏輯 (已廢除 invite_code，改用 projectId)
       const params = new URLSearchParams(window.location.search);
-      let codeFromUrl = params.get('code');
+      let projectIdFromUrl = params.get('projectId');
 
-      // ✨ LIFF 解碼：支援 ?liff.state=%3Fcode%3D...
-      if (!codeFromUrl && params.has('liff.state')) {
+      // ✨ LIFF 解碼：支援 ?liff.state=%3FprojectId%3D...
+      if (!projectIdFromUrl && params.has('liff.state')) {
         try {
           const liffState = params.get('liff.state');
           const decodedSearch = decodeURIComponent(liffState);
           const stateParams = new URLSearchParams(decodedSearch);
-          codeFromUrl = stateParams.get('code');
-          if (codeFromUrl) console.log('✅ LIFF 解碼邀請碼成功:', codeFromUrl);
+          projectIdFromUrl = stateParams.get('projectId');
+          if (projectIdFromUrl) console.log('✅ LIFF 解碼專案 ID 成功:', projectIdFromUrl);
         } catch (e) {
           console.error('LIFF 解碼失敗:', e);
         }
       }
 
-      const codeFromStorage = localStorage.getItem('pending_invite_code');
-      const codeToProcess = codeFromUrl || codeFromStorage;
+      const projectIdFromStorage = localStorage.getItem('pending_project_id');
+      const projectIdToProcess = projectIdFromUrl || projectIdFromStorage;
 
-      if (codeToProcess) {
+      if (projectIdToProcess) {
         // 先存入暫存以防萬一
-        if (codeFromUrl) localStorage.setItem('pending_invite_code', codeFromUrl);
+        if (projectIdFromUrl) localStorage.setItem('pending_project_id', projectIdFromUrl);
         
         try {
-          // 透過 RPC 取得專案預覽
-          const { data: projects, error } = await supabase.rpc('get_project_preview_by_code', { 
-            p_invite_code: codeToProcess 
-          });
+          // 直接從 projects 表查詢專案資料
+          const { data: project, error } = await supabase
+            .from('projects')
+            .select('id, name, status, user_id')
+            .eq('id', projectIdToProcess)
+            .single();
           
-          if (error || !projects || projects.length === 0) {
-            console.warn('找不到對應的專案或邀請碼已失效');
+          if (error || !project) {
+            console.warn('找不到對應的專案或專案 ID 無效');
             return;
           }
-
-          const project = projects[0];
           
           // 檢查成員身分
           const { data: membership } = await supabase
@@ -247,15 +247,13 @@ function App() {
         } catch (err) {
           console.error('邀請流程發生錯誤:', err);
         } finally {
-          // 4. ✨ 精準清理 URL (不採用焦土政策)
-          localStorage.removeItem('pending_invite_code');
+          // 4. ✨ 精準清理 URL
+          localStorage.removeItem('pending_project_id');
           
           const finalUrl = new URL(window.location);
-          finalUrl.searchParams.delete('code');       // 刪除 code
           finalUrl.searchParams.delete('liff.state'); // 刪除 liff.state
           
-          // 如果是成員，此時 URL 已經被 updateUrlProjectId 加入了 projectId
-          // 如果是非成員，此時 URL 會變回乾淨的 /, 等按下加入成功後才會加上 projectId
+          // 保留 ?projectId= 作為乾淨的 URL 狀態
           window.history.replaceState({}, '', finalUrl.pathname + finalUrl.search);
         }
       }
