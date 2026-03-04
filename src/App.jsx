@@ -131,29 +131,44 @@ function App() {
     fetchProjects(user.id, false, null); // 不過濾狀態
   };
 
-  /* --- Google 登入邏輯 --- */
-  const handleGoogleLogin = async () => {
-  setLoadingText('正在導向 Google...');
-  setIsDataLoading(true);
-  try {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin, 
-        queryParams: { 
-          access_type: 'offline', 
+  /* --- OAuth 登入邏輯 (支援 Google & LINE) --- */
+  const handleOAuthLogin = async (provider) => {
+    const providerNames = { google: 'Google', line: 'LINE' };
+    setLoadingText(`正在導向 ${providerNames[provider]}...`);
+    setIsDataLoading(true);
+    
+    try {
+      const options = {
+        redirectTo: import.meta.env.VITE_REDIRECT_URL || window.location.origin
+      };
+      
+      // Google 專用參數
+      if (provider === 'google') {
+        options.queryParams = {
+          access_type: 'offline',
           prompt: 'select_account',
-          // 關鍵！把 NAS 的 Anon Key 塞進網址參數
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, 
-        },
-      },
-    });
-    if (error) throw error;
-  } catch (err) {
-    setIsDataLoading(false);
-    message.error('Google 登入啟動失敗: ' + err.message);
-  }
-};
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        };
+      }
+      
+      // LINE 專用參數 (如果需要的話)
+      if (provider === 'line') {
+        options.queryParams = {
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        };
+      }
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options
+      });
+      
+      if (error) throw error;
+    } catch (err) {
+      setIsDataLoading(false);
+      message.error(`${providerNames[provider]} 登入啟動失敗: ` + err.message);
+    }
+  };
   /* --- 初始化 useEffect --- */
   // 只負責主題、紅點、邀請碼等初始化
   useEffect(() => {
@@ -235,7 +250,7 @@ function App() {
     return (
       <>
         {isDataLoading && <LoadingScreen text={loadingText} />}
-        <AuthView onGoogleLogin={handleGoogleLogin} />
+        <AuthView onOAuthLogin={handleOAuthLogin} />
       </>
     );
   }

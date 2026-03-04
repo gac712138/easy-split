@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { message } from 'antd';
-import { User, Lock, CheckCircle } from 'lucide-react';
+import { User, Lock, CheckCircle, Mail } from 'lucide-react';
 
 const SetupProfileModal = ({ isOpen, user, onComplete }) => {
   const [loading, setLoading] = useState(false);
   
   // 表單狀態
   const [name, setName] = useState('');
+  const [email, setEmail] = useState(user?.email || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // ★ 關鍵判斷：檢查使用者是否透過 Google 登入
-  // (Google 登入的 app_metadata.provider 會是 'google')
-  const isGoogleLogin = user?.app_metadata?.provider === 'google';
+  // ★ 關鍵判斷：檢查使用者是否透過 OAuth 登入
+  // (OAuth 登入的 app_metadata.provider 會是 'google' 或 'line')
+  const isOAuthLogin = ['google', 'line'].includes(user?.app_metadata?.provider);
+  const hasEmail = !!user?.email;
 
   const handleSubmit = async () => {
     // 1. 驗證暱稱 (所有人都要)
@@ -22,8 +24,14 @@ const SetupProfileModal = ({ isOpen, user, onComplete }) => {
       return;
     }
 
-    // ★ 2. 驗證密碼 (只有「非」Google 登入才需要檢查)
-    if (!isGoogleLogin) {
+    // 2. 驗證 Email (OAuth 登入但沒有 Email 時必填)
+    if (!hasEmail && !email.trim()) {
+      message.error('請輸入您的 Email');
+      return;
+    }
+
+    // ★ 3. 驗證密碼 (只有「非」OAuth 登入才需要檢查)
+    if (!isOAuthLogin) {
       if (password.length < 6) {
         message.error('密碼長度需至少 6 碼');
         return;
@@ -36,13 +44,18 @@ const SetupProfileModal = ({ isOpen, user, onComplete }) => {
 
     setLoading(true);
     try {
-      // 3. 準備要更新的資料
+      // 4. 準備要更新的資料
       const updatePayload = {
         data: { name: name } // 更新 metadata 中的 name
       };
 
+      // ★ 如果沒有 Email，則更新 Email
+      if (!hasEmail && email.trim()) {
+        updatePayload.email = email;
+      }
+
       // ★ 只有 Email 用戶才更新密碼
-      if (!isGoogleLogin) {
+      if (!isOAuthLogin) {
         updatePayload.password = password;
       }
 
@@ -74,7 +87,7 @@ const SetupProfileModal = ({ isOpen, user, onComplete }) => {
             歡迎加入 EasySplit 👋
           </h2>
           <p style={{ color: '#888', fontSize: '14px' }}>
-            初次見面！請設定您的暱稱{ !isGoogleLogin && '與登入密碼' }，以便日後使用。
+            初次見面！請設定您的暱稱{ !isOAuthLogin && '與登入密碼' }，以便日後使用。
           </p>
         </div>
 
@@ -95,8 +108,25 @@ const SetupProfileModal = ({ isOpen, user, onComplete }) => {
             </div>
           </div>
 
-          {/* ★ 2. 只有「非 Google 用戶」才顯示密碼欄位 */}
-          {!isGoogleLogin && (
+          {/* 2. Email 欄位 (OAuth 登入但沒有 Email 時顯示) */}
+          {!hasEmail && (
+            <div>
+              <label style={{ display: 'block', color: '#888', fontSize: '13px', marginBottom: '6px' }}>Email 地址</label>
+              <div style={{ position: 'relative' }}>
+                <Mail size={18} color="#666" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input 
+                  type="email" 
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '12px', background: '#222', border: '1px solid #444', color: '#fff', outline: 'none' }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ★ 3. 只有「非 OAuth 用戶」才顯示密碼欄位 */}
+          {!isOAuthLogin && (
             <>
               <div>
                 <label style={{ display: 'block', color: '#888', fontSize: '13px', marginBottom: '6px' }}>設定登入密碼</label>

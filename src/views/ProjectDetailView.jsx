@@ -58,6 +58,8 @@ const ProjectDetailView = ({
   // ★ 核心 2：人員紅點即時判斷 (人數 <= 1 則顯示)
   const showPersonnelBadge = localPersonnel.length <= 1;
 
+  const projectId = project?.id;
+
   // 同步專案狀態
   useEffect(() => {
     if (project?.status) setCurrentStatus(project.status);
@@ -104,6 +106,84 @@ const ProjectDetailView = ({
       setLoading(false); 
     }
   }, [project?.id, project?.user_id, currentStatus, setIsTypesEmpty]);
+
+  useEffect(() => {
+    let retryAttempted = false;
+
+    const fetchInitialData = async () => {
+      if (!projectId) {
+        console.error('Project ID is missing. Cannot fetch initial data.');
+        return;
+      }
+
+      try {
+        const { data: projectData, error } = await supabase
+          .from('projects')
+          .select('invite_code, project_members(user_id)')
+          .eq('id', projectId)
+          .single();
+
+        if (error) {
+          console.error('Failed to fetch project data:', error);
+          if (!retryAttempted) {
+            retryAttempted = true;
+            setTimeout(fetchInitialData, 1000); // Force retry after 1 second
+          }
+          return;
+        }
+
+        if (projectData) {
+          setProject(projectData);
+          const ownerId = projectData.project_members?.user_id;
+
+          if (ownerId) {
+            const [categoriesRes, personnelRes] = await Promise.all([
+              supabase.from('categories').select('*').eq('user_id', ownerId),
+              supabase.from('personnel').select('*').eq('project_id', projectId),
+            ]);
+
+            if (categoriesRes.error) {
+              console.error('Failed to fetch categories:', categoriesRes.error);
+            } else {
+              setLocalCategories(categoriesRes.data);
+              setLoading(true); // Lock loading state until categories are fetched
+            }
+
+            if (personnelRes.error) {
+              console.error('Failed to fetch personnel:', personnelRes.error);
+            } else {
+              setLocalPersonnel(personnelRes.data);
+            }
+          }
+        } else if (supabase.auth.user()) {
+          console.warn('Project data is empty despite user being authenticated. Retrying...');
+          setTimeout(fetchInitialData, 1000); // Force retry after 1 second
+        }
+      } catch (err) {
+        console.error('Unexpected error during fetchInitialData:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user && projectId) {
+        setLoading(true);
+        fetchInitialData();
+      }
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user && projectId) {
+        setLoading(true);
+        fetchInitialData();
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
+  }, [projectId]);
 
   useEffect(() => {
     initProjectData();

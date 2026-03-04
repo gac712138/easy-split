@@ -72,7 +72,7 @@ const mainBtnStyle = {
   marginTop: '12px'
 };
 
-const AuthView = ({ onGoogleLogin }) => {
+const AuthView = ({ onOAuthLogin }) => {
   const [mode, setMode] = useState(MODE.LOGIN);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
@@ -189,7 +189,7 @@ const AuthView = ({ onGoogleLogin }) => {
             {/* ★ 優化後的 Google 按鈕 */}
             <button 
               type="button" 
-              onClick={onGoogleLogin}
+              onClick={() => onOAuthLogin('google')}
               style={{
                 width: '100%',
                 height: '52px',
@@ -205,7 +205,8 @@ const AuthView = ({ onGoogleLogin }) => {
                 gap: '12px',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                marginBottom: '12px'
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = '#ffffff'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#f8f9fa'}
@@ -214,6 +215,44 @@ const AuthView = ({ onGoogleLogin }) => {
             >
               <img src="/GoogleLogo.png" alt="Google" width="35" height="35" />
               使用 Google 帳號繼續
+            </button>
+
+            {/* ★ LINE 登入按鈕 */}
+            <button 
+              type="button" 
+              onClick={() => onOAuthLogin('line')}
+              style={{
+                width: '100%',
+                height: '52px',
+                borderRadius: '26px',
+                border: 'none',
+                background: '#06C755',
+                color: '#ffffff',
+                fontSize: '15px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 8px rgba(6, 199, 85, 0.3)'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#05B34A'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#06C755'}
+              onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
+              onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              <img 
+                src="/LineLogo.png" 
+                alt="LINE" 
+                width="40" 
+                height="40"
+                style={{ 
+                  marginRight: '12px',
+                  objectFit: 'contain'
+                }}
+              />
+              使用 LINE 帳號繼續
             </button>
 
             <div style={{ marginTop: '32px', textAlign: 'center' }}>

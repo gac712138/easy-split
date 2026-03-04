@@ -9,6 +9,25 @@ const JoinProjectModal = ({ isOpen, onClose, project, user, onSuccess }) => {
   const [selection, setSelection] = useState('new'); // 'new' or personnel_id
   const [newNickname, setNewNickname] = useState('');
 
+  // ★ 名字匹配函數：計算相似度 (支援無 Email LINE 登入)
+  const getNameSimilarity = (name1, name2) => {
+    if (!name1 || !name2) return 0;
+    const n1 = name1.toLowerCase().trim();
+    const n2 = name2.toLowerCase().trim();
+    
+    // 完全匹配
+    if (n1 === n2) return 100;
+    
+    // 包含匹配
+    if (n1.includes(n2) || n2.includes(n1)) return 80;
+    
+    // 字元共通率
+    const chars1 = [...n1];
+    const chars2 = [...n2];
+    const common = chars1.filter(c => chars2.includes(c)).length;
+    return Math.floor((common / Math.max(chars1.length, chars2.length)) * 60);
+  };
+
   // 初始化：讀取該專案「未被認領」的人員名單
   useEffect(() => {
     if (isOpen && project) {
@@ -35,7 +54,20 @@ const JoinProjectModal = ({ isOpen, onClose, project, user, onSuccess }) => {
         if (error) {
           console.error('Fetch personnel failed:', error);
         } else {
-          setUnclaimedPersonnel(data || []);
+          let personnel = data || [];
+          
+          // ★ LINE 登入無 Email 支援：依名字相似度排序
+          const userName = user?.user_metadata?.name || '';
+          const hasEmail = !!user?.email;
+          
+          if (!hasEmail && userName) {
+            personnel = personnel.map(p => ({
+              ...p,
+              nameSimilarity: getNameSimilarity(userName, p.name)
+            })).sort((a, b) => b.nameSimilarity - a.nameSimilarity);
+          }
+          
+          setUnclaimedPersonnel(personnel);
         }
         
         setNewNickname(user?.user_metadata?.name || '新成員');
@@ -120,7 +152,7 @@ const JoinProjectModal = ({ isOpen, onClose, project, user, onSuccess }) => {
         {/* 身分選擇區 (可捲動區域) */}
         <div style={{ marginBottom: '24px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <p style={{ color: '#aaa', fontSize: '13px', fontWeight: '600', marginBottom: '12px', paddingLeft: '4px', flexShrink: 0 }}>
-            請問名單中哪一位是你？
+            {!user?.email ? '根據您的名字，以下是建議選項：' : '請問名單中哪一位是你？'}
           </p>
           
           {/* ★ 這裡加上 overflow-y: auto 讓列表可以滑動 */}
@@ -174,25 +206,45 @@ const JoinProjectModal = ({ isOpen, onClose, project, user, onSuccess }) => {
             </div>
 
             {/* 選項：既有名單 */}
-            {unclaimedPersonnel.map(p => (
-              <div 
-                key={p.id}
-                onClick={() => setSelection(p.id)}
-                style={{ 
-                  padding: '16px', 
-                  borderRadius: '16px', 
-                  background: selection === p.id ? 'rgba(58, 143, 183, 0.15)' : 'rgba(255,255,255,0.03)', 
-                  border: selection === p.id ? '2px solid var(--color-primary)' : '2px solid transparent',
-                  cursor: 'pointer',
-                  transition: '0.2s',
-                  display: 'flex', alignItems: 'center', gap: '12px',
-                  flexShrink: 0
-                }}
-              >
-                <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: selection === p.id ? '6px solid var(--color-primary)' : '2px solid #555', boxSizing: 'border-box' }} />
-                <div style={{ color: '#fff', fontWeight: '700' }}>我是 {p.name}</div>
-              </div>
-            ))}
+            {unclaimedPersonnel.map(p => {
+              const isHighSimilarity = p.nameSimilarity >= 80;
+              const isModerateSimilarity = p.nameSimilarity >= 60 && p.nameSimilarity < 80;
+              
+              return (
+                <div 
+                  key={p.id}
+                  onClick={() => setSelection(p.id)}
+                  style={{ 
+                    padding: '16px', 
+                    borderRadius: '16px', 
+                    background: selection === p.id ? 'rgba(58, 143, 183, 0.15)' : 'rgba(255,255,255,0.03)', 
+                    border: selection === p.id ? '2px solid var(--color-primary)' : 
+                           (isHighSimilarity ? '2px solid #52c41a' : 
+                           (isModerateSimilarity ? '2px solid #faad14' : '2px solid transparent')),
+                    cursor: 'pointer',
+                    transition: '0.2s',
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    flexShrink: 0,
+                    position: 'relative'
+                  }}
+                >
+                  <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: selection === p.id ? '6px solid var(--color-primary)' : '2px solid #555', boxSizing: 'border-box' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#fff', fontWeight: '700' }}>我是 {p.name}</div>
+                    {isHighSimilarity && (
+                      <div style={{ fontSize: '11px', color: '#52c41a', marginTop: '2px' }}>
+                        🎯 最佳匹配建議
+                      </div>
+                    )}
+                    {isModerateSimilarity && (
+                      <div style={{ fontSize: '11px', color: '#faad14', marginTop: '2px' }}>
+                        ⭐ 可能匹配
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
           </div>
         </div>

@@ -12,6 +12,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,   // 確保登入狀態存在瀏覽器
     autoRefreshToken: true, // 自動更新 Token
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    // 設定預設重定向 URL
+    redirectTo: import.meta.env.VITE_REDIRECT_URL || window.location.origin
   }
 })
