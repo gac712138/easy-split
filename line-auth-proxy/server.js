@@ -186,6 +186,7 @@ app.get('/auth/line', (req, res) => {
     lineAuthUrl.searchParams.append('redirect_uri', process.env.LINE_REDIRECT_URI);
     lineAuthUrl.searchParams.append('state', state);
     lineAuthUrl.searchParams.append('scope', 'profile openid email');
+    lineAuthUrl.searchParams.append('prompt', 'consent');
 
     console.log(`🔄 重定向到 LINE OAuth: ${lineAuthUrl.toString()}`);
     
@@ -327,12 +328,13 @@ app.get('/auth/line/callback', async (req, res) => {
     // 步驟 E: 產生 Magic Link（無論新舊帳號都使用同一個流程）
     console.log('🔄 步驟 E: 產生 Magic Link...');
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: finalEmail,
-      options: {
-        redirectTo: process.env.FRONTEND_URL
-      }
-    });
+  type: 'magiclink',
+  email: finalEmail,
+  options: {
+    // 確保這裡的跳轉目標是你前端的首頁
+    redirectTo: process.env.FRONTEND_URL 
+  }
+});
 
     if (linkError) {
       console.error('Magic Link 產生失敗:', linkError);

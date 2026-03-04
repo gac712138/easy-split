@@ -187,30 +187,56 @@ function App() {
       await checkCategoriesStatus();
 
       // 3. 邀請碼邏輯
+      // 3. 邀請碼邏輯 (修正版：支援 LIFF 解碼)
       const params = new URLSearchParams(window.location.search);
-      const codeFromUrl = params.get('code');
+      let codeFromUrl = params.get('code');
+
+      // ✨ 新增：如果 URL 沒直接抓到 code，但有 liff.state，就進去拆箱解碼
+      if (!codeFromUrl && params.has('liff.state')) {
+        try {
+          const liffState = params.get('liff.state'); // 拿到 "%3Fcode%3D4739fa"
+          const decodedSearch = decodeURIComponent(liffState); // 解碼成 "?code=4739fa"
+          const stateParams = new URLSearchParams(decodedSearch);
+          codeFromUrl = stateParams.get('code');
+          if (codeFromUrl) console.log('✅ 從 liff.state 成功提取邀請碼:', codeFromUrl);
+        } catch (e) {
+          console.error('解析 liff.state 出錯:', e);
+        }
+      }
+
       const codeFromStorage = localStorage.getItem('pending_invite_code');
       const codeToProcess = codeFromUrl || codeFromStorage;
 
       if (codeToProcess) {
+        // 如果是剛從 URL 進來的，先存進 LocalStorage 防丟失 (例如登入跳轉時)
         if (codeFromUrl) localStorage.setItem('pending_invite_code', codeFromUrl);
+        
         try {
-          const { data: projects, error } = await supabase.rpc('get_project_preview_by_code', { p_invite_code: codeToProcess });
+          const { data: projects, error } = await supabase.rpc('get_project_preview_by_code', { 
+            p_invite_code: codeToProcess 
+          });
+          
           if (error || !projects || projects.length === 0) return;
 
           const project = projects[0];
-          const { data: membership } = await supabase.from('project_members').select('id').eq('project_id', project.id).eq('user_id', user.id).maybeSingle();
+          const { data: membership } = await supabase
+            .from('project_members')
+            .select('id')
+            .eq('project_id', project.id)
+            .eq('user_id', user.id)
+            .maybeSingle();
 
           if (membership) {
             setSelectedProject(project);
-            updateUrlProjectId(project.id); // 邀請碼進入時也記錄 URL
+            updateUrlProjectId(project.id);
           } else {
             setTargetJoinProject(project);
             setIsJoinModalOpen(true);
           }
         } catch (err) {
-          console.error(err);
+          console.error('處理邀請碼失敗:', err);
         } finally {
+          // 處理完畢後，清理快取並洗掉 URL 上的髒東西
           localStorage.removeItem('pending_invite_code');
           window.history.replaceState({}, '', window.location.pathname);
         }
