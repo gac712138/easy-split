@@ -126,6 +126,18 @@ async function ensureSupabaseUser(virtualEmail, lineProfile) {
     });
 
     if (createError) {
+      // 如果用戶已存在，這是正常情況，直接繼續
+      if (createError.code === 'email_exists') {
+        console.log(`ℹ️  用戶已存在，繼續登入流程: ${virtualEmail}`);
+        // 嘗試重新查找該用戶
+        const { data: retryUsers } = await supabase.auth.admin.listUsers();
+        const existingUser = retryUsers.users?.find(user => user.email === virtualEmail);
+        if (existingUser) {
+          return existingUser;
+        }
+        // 如果還是找不到，就建立一個基本的用戶對象供後續使用
+        return { email: virtualEmail };
+      }
       console.error('建立用戶失敗:', createError);
       throw createError;
     }
@@ -173,7 +185,7 @@ app.get('/auth/line', (req, res) => {
     lineAuthUrl.searchParams.append('client_id', process.env.LINE_CHANNEL_ID);
     lineAuthUrl.searchParams.append('redirect_uri', process.env.LINE_REDIRECT_URI);
     lineAuthUrl.searchParams.append('state', state);
-    lineAuthUrl.searchParams.append('scope', 'profile openid');
+    lineAuthUrl.searchParams.append('scope', 'profile openid email');
 
     console.log(`🔄 重定向到 LINE OAuth: ${lineAuthUrl.toString()}`);
     
@@ -234,8 +246,8 @@ app.get('/auth/line/callback', async (req, res) => {
       }
     });
 
-    const { access_token } = tokenResponse.data;
-    console.log('✅ 成功取得 Access Token');
+    const { access_token, id_token } = tokenResponse.data;
+    console.log('✅ 成功取得 Access Token 和 ID Token');
 
     console.log('🔄 步驟 B: 取得用戶資料...');
 
@@ -249,19 +261,74 @@ app.get('/auth/line/callback', async (req, res) => {
     const lineProfile = profileResponse.data;
     console.log(`✅ 成功取得用戶資料: ${lineProfile.displayName} (${lineProfile.userId})`);
 
-    // 步驟 C: 產生虛擬 Email
-    const virtualEmail = generateVirtualEmail(lineProfile.userId);
-    console.log(`🔄 步驟 C: 虛擬 Email: ${virtualEmail}`);
+    // 步驟 C: 從 id_token 解碼取得真實 Email
+    console.log('🔄 步驟 C: 解碼 id_token 取得 Email...');
+    let userEmail = null;
+    
+    if (id_token) {
+      try {
+        // 使用原生 Node.js 解碼 JWT payload (不需要驗證簽章，因為來自 LINE 官方)
+        const payload = JSON.parse(
+          Buffer.from(id_token.split('.')[1], 'base64').toString('utf-8')
+        );
+        userEmail = payload.email;
+        
+        if (userEmail) {
+          console.log(`✅ 取得真實 Email: ${userEmail}`);
+        } else {
+          console.log('⚠️  使用者 LINE 帳號未綁定 Email，使用虛擬信箱');
+        }
+      } catch (decodeError) {
+        console.error('⚠️  解碼 id_token 失敗:', decodeError.message);
+      }
+    }
+    
+    // 防呆機制：如果沒有真實 Email，使用虛擬信箱
+    const finalEmail = userEmail || generateVirtualEmail(lineProfile.userId);
+    console.log(`📧 最終使用 Email: ${finalEmail}`);
 
-    // 步驟 D: 確保 Supabase 用戶存在
-    console.log('🔄 步驟 D: 檢查/建立 Supabase 用戶...');
-    const supabaseUser = await ensureSupabaseUser(virtualEmail, lineProfile);
+    // 步驟 D: 嘗試建立 Supabase 用戶（聰明的帳號綁定）
+    console.log('🔄 步驟 D: 建立或綁定 Supabase 用戶...');
+    
+    try {
+      const { data: newUserData, error: createError } = await supabase.auth.admin.createUser({
+        email: finalEmail,
+        email_confirm: true,
+        user_metadata: {
+          name: lineProfile.displayName,
+          avatar_url: lineProfile.pictureUrl,
+          provider: 'line',
+          line_user_id: lineProfile.userId
+        },
+        app_metadata: {
+          provider: 'line',
+          providers: ['line']
+        }
+      });
 
-    // 步驟 E: 產生 Magic Link
+      if (createError) {
+        // 攔截 email_exists 錯誤，這是正常情況（帳號已存在，執行綁定）
+        if (createError.code === 'email_exists' || 
+            createError.message?.includes('already been registered')) {
+          console.log('✅ 帳號已存在，直接執行登入綁定');
+        } else {
+          // 其他錯誤才需要 throw
+          console.error('建立用戶時發生未預期的錯誤:', createError);
+          throw createError;
+        }
+      } else {
+        console.log(`✅ 成功建立新用戶: ${newUserData.user.id}`);
+      }
+    } catch (error) {
+      console.error('建立用戶過程中發生錯誤:', error);
+      throw error;
+    }
+
+    // 步驟 E: 產生 Magic Link（無論新舊帳號都使用同一個流程）
     console.log('🔄 步驟 E: 產生 Magic Link...');
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
-      email: virtualEmail,
+      email: finalEmail,
       options: {
         redirectTo: process.env.FRONTEND_URL
       }
