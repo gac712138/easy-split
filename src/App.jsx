@@ -227,14 +227,22 @@ function App() {
             .maybeSingle();
 
           if (membership) {
+            // ✨ 修正點 1：如果是現有成員，進入時也自動執行重載
+            handleRefresh(); // 更新全域專案列表資料
             setSelectedProject(project);
             updateUrlProjectId(project.id);
+            
+            // ✨ 修正點 2：檢查紅點狀態 (確保分類資料也是最新的)
+            await checkCategoriesStatus(); 
+            
+            message.success(`已自動切換至專案：${project.name}`);
           } else {
+            // 若非成員，開啟加入彈窗 (JoinProjectModal 本身已在 onSuccess 處理 handleRefresh)
             setTargetJoinProject(project);
             setIsJoinModalOpen(true);
           }
         } catch (err) {
-          console.error('處理邀請碼失敗:', err);
+          console.error('邀請碼處理出錯:', err);
         } finally {
           // 處理完畢後，清理快取並洗掉 URL 上的髒東西
           localStorage.removeItem('pending_invite_code');
