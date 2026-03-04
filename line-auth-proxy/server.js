@@ -341,9 +341,42 @@ app.get('/auth/line/callback', async (req, res) => {
 
     console.log('✅ 成功產生 Magic Link');
 
-    // 步驟 F: 重定向到 Magic Link
-    console.log('🔄 步驟 F: 重定向到 Magic Link...');
-    res.redirect(linkData.properties.action_link);
+    // 步驟 F: 從 action_link 提取 token 並驗證
+    console.log('🔄 步驟 F: 提取 token 並驗證...');
+    const actionLink = linkData.properties.action_link;
+    const url = new URL(actionLink);
+    const token = url.searchParams.get('token');
+    const type = url.searchParams.get('type') || 'magiclink';
+
+    if (!token) {
+      console.error('❌ 無法從 action_link 中提取 token');
+      throw new Error('Token extraction failed');
+    }
+
+    console.log('🔄 步驟 G: 驗證 OTP 並獲取 session...');
+    const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+      email: finalEmail,
+      token: token,
+      type: type
+    });
+
+    if (verifyError) {
+      console.error('OTP 驗證失敗:', verifyError);
+      throw verifyError;
+    }
+
+    if (!verifyData.session) {
+      console.error('❌ 驗證成功但沒有返回 session');
+      throw new Error('No session returned');
+    }
+
+    console.log('✅ 成功驗證並獲取 session');
+
+    // 步驟 H: 組合帶有 token 的前端網址（Hash 模式讓前端自動登入）
+    const frontendUrl = `${process.env.FRONTEND_URL}#access_token=${verifyData.session.access_token}&refresh_token=${verifyData.session.refresh_token}&expires_in=${verifyData.session.expires_in}&token_type=bearer&type=magiclink`;
+
+    console.log('🔄 步驟 H: 重定向到前端 (已登入狀態)...');
+    res.redirect(frontendUrl);
 
   } catch (error) {
     console.error('LINE OAuth 回調處理失敗:', error);
