@@ -222,6 +222,15 @@ const AuthView = ({ onGoogleLogin, showGoogle = true }) => {
               </>
             )}
 
+            {/* ★ 分隔線（無論是否顯示 Google 按鈕都要有間距） */}
+            {!showGoogle && (
+              <div style={{ display: 'flex', alignItems: 'center', margin: '28px 0' }}>
+                <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2))' }}></div>
+                <span style={{ padding: '0 12px', fontSize: '13px', color: '#666', fontWeight: '500' }}>或</span>
+                <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(255,255,255,0.2), transparent)' }}></div>
+              </div>
+            )}
+
             {/* ★ LINE 登入按鈕 */}
             <button 
               type="button" 
@@ -242,7 +251,8 @@ const AuthView = ({ onGoogleLogin, showGoogle = true }) => {
                 justifyContent: 'center',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                boxShadow: '0 2px 8px rgba(6, 199, 85, 0.3)'
+                boxShadow: '0 2px 8px rgba(6, 199, 85, 0.3)',
+                marginTop: showGoogle ? '0' : '0' // 在 LINE 瀏覽器中額外的上邊距由分隔線提供
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = '#05B34A'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#06C755'}
