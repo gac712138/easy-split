@@ -26,6 +26,9 @@ const PROJECT_PAGE_SIZE = 10;
 function App() {
   const { user, signOut } = useAuth(); // 只從 AuthContext 取得 user 狀態
 
+  // ✨ 偵測是否為 LINE 內建瀏覽器
+  const isLineBrowser = /Line/i.test(window.navigator.userAgent);
+
   /* --- 狀態定義 --- */
   const [currentView, setCurrentView] = useState('projects'); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);        
@@ -294,7 +297,11 @@ function App() {
     return (
       <>
         {isDataLoading && <LoadingScreen text={loadingText} />}
-        <AuthView onGoogleLogin={handleGoogleLogin} />
+        {/* 傳入 showGoogle 屬性，在 LINE 瀏覽器中隱藏 Google 按鈕 */}
+        <AuthView 
+          onGoogleLogin={handleGoogleLogin} 
+          showGoogle={!isLineBrowser}
+        />
       </>
     );
   }

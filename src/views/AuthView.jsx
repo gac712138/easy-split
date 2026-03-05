@@ -72,7 +72,7 @@ const mainBtnStyle = {
   marginTop: '12px'
 };
 
-const AuthView = ({ onGoogleLogin }) => {
+const AuthView = ({ onGoogleLogin, showGoogle = true }) => {
   const [mode, setMode] = useState(MODE.LOGIN);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
@@ -179,43 +179,48 @@ const AuthView = ({ onGoogleLogin }) => {
               登入
             </button>
             
-            {/* ★ 優化後的分隔線 */}
-            <div style={{ display: 'flex', alignItems: 'center', margin: '28px 0' }}>
-              <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2))' }}></div>
-              <span style={{ padding: '0 12px', fontSize: '13px', color: '#666', fontWeight: '500' }}>或</span>
-              <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(255,255,255,0.2), transparent)' }}></div>
-            </div>
+            {/* ★ 分隔線與 Google 按鈕：只有當 showGoogle 為 true 時才顯示 */}
+            {showGoogle && (
+              <>
+                {/* ★ 優化後的分隔線 */}
+                <div style={{ display: 'flex', alignItems: 'center', margin: '28px 0' }}>
+                  <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2))' }}></div>
+                  <span style={{ padding: '0 12px', fontSize: '13px', color: '#666', fontWeight: '500' }}>或</span>
+                  <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(255,255,255,0.2), transparent)' }}></div>
+                </div>
 
-            {/* ★ 優化後的 Google 按鈕 */}
-            <button 
-              type="button" 
-              onClick={onGoogleLogin}
-              style={{
-                width: '100%',
-                height: '52px',
-                borderRadius: '26px', // 與主按鈕一致的圓角
-                border: 'none',
-                background: '#eef0f3ff', // 柔和的灰白，不像純白那麼刺眼
-                color: '#1f1f1f',
-                fontSize: '15px',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                marginBottom: '12px'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#ffffff'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#f8f9fa'}
-              onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-              onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              <img src="/GoogleLogo.png" alt="Google" width="35" height="35" />
-              使用 Google 帳號繼續
-            </button>
+                {/* ★ 優化後的 Google 按鈕 */}
+                <button 
+                  type="button" 
+                  onClick={onGoogleLogin}
+                  style={{
+                    width: '100%',
+                    height: '52px',
+                    borderRadius: '26px', // 與主按鈕一致的圓角
+                    border: 'none',
+                    background: '#eef0f3ff', // 柔和的灰白，不像純白那麼刺眼
+                    color: '#1f1f1f',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    marginBottom: '12px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#ffffff'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#f8f9fa'}
+                  onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
+                  onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  <img src="/GoogleLogo.png" alt="Google" width="35" height="35" />
+                  使用 Google 帳號繼續
+                </button>
+              </>
+            )}
 
             {/* ★ LINE 登入按鈕 */}
             <button 
